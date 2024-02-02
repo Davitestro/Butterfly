@@ -47,7 +47,7 @@ def Start_pvp():
 
     else:
         messagebox.showerror("Please choose", "Please choose target player and mod")
-        pvp_menu("Place")
+        pvp_menu()
             
 stop_duel = [False]
 
@@ -217,6 +217,9 @@ def generate_custom_menu_button(root, has_search_box, items, key, text):
             filtered_items = [item for item in items if search_text in item.lower()]
             array_list.delete(0, END)
             for item in filtered_items:
+                array_list.insert(END, item)
+        else:
+            for item in items:
                 array_list.insert(END, item)
 
     def on_select(event):
