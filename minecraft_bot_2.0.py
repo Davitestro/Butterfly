@@ -36,13 +36,40 @@ def Hunting():
             bot.pathfinder.setGoal(goal, False)
             break
 
+
+def Folow():
+    bot = bot_data[0]
+    mcData = require('minecraft-data')(bot.version)
+    movements = pathfinder.Movements(bot, mcData)
+    bot.pathfinder.setMovements(movements)
+    current_target = None
+    print("Start Hunting")
+    current_target = bot.players[coices['Player']].entity
+    goal = goalfollow(current_target, 1)
+    bot.pathfinder.setGoal(goal, True)
+    while True:
+        if stop_duel[0]:
+            stop_pvp.place_forget()
+            start_pvp.place(x=288,y=150)
+            stop_duel[0] = False
+            current_target = bot.players[coices['Player']].entity
+            goal = goalfollow(current_target, 0)
+            bot.pathfinder.setGoal(goal, False)
+            break
+
+
 def Start_pvp():
     if coices.get('Player') != None and coices.get('Mod') != None:
         if coices["Mod"] == "Hunt":
             start_pvp.place_forget()
-            stop_pvp.place(x=288,y=150)
+            stop_pvp.place(x=350, y=145)
             hunting_proces = threading.Thread(target=Hunting)
             hunting_proces.start()
+        elif coices["Mod"] == "Folow":
+            start_pvp.place_forget()
+            stop_pvp.place(x=350, y=145)
+            folow_proces = threading.Thread(target=Folow)
+            folow_proces.start()
 
 
     else:
@@ -75,8 +102,8 @@ def pvp_menu():
     players_scrol = generate_custom_menu_button(root, has_search_box=True, items=options[2], key='Player', text="Choose player")
     mod_scrol = generate_custom_menu_button(root, has_search_box=False, items=options[0], key='Mod', text='Choose mod')
     players_scrol.place(x=288,y=100)
-    mod_scrol.place(x=288, y = 200)
-    start_pvp.place(x=288, y = 150)
+    mod_scrol.place(x=288, y = 225)
+    start_pvp.place(x=350, y = 145)
     menu("Forgot")
 
 
