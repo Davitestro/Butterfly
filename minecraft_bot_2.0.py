@@ -17,7 +17,7 @@ def Hunting():
     bot.pathfinder.setMovements(movements)
     current_target = None
     print("Start Hunting")
-    current_target = bot.players[coices['Player']].entity
+    current_target = bot.players[choices['Player']].entity
     goal = goalfollow(current_target, 1)
     bot.pathfinder.setGoal(goal, True)
     while True:
@@ -31,7 +31,7 @@ def Hunting():
             stop_pvp.place_forget()
             start_pvp.place(x=288,y=150)
             stop_duel[0] = False
-            current_target = bot.players[coices['Player']].entity
+            current_target = bot.players[choices['Player']].entity
             goal = goalfollow(current_target, 0)
             bot.pathfinder.setGoal(goal, False)
             break
@@ -44,7 +44,7 @@ def Folow():
     bot.pathfinder.setMovements(movements)
     current_target = None
     print("Start Hunting")
-    current_target = bot.players[coices['Player']].entity
+    current_target = bot.players[choices['Player']].entity
     goal = goalfollow(current_target, 1)
     bot.pathfinder.setGoal(goal, True)
     while True:
@@ -52,20 +52,20 @@ def Folow():
             stop_pvp.place_forget()
             start_pvp.place(x=288,y=150)
             stop_duel[0] = False
-            current_target = bot.players[coices['Player']].entity
+            current_target = bot.players[choices['Player']].entity
             goal = goalfollow(current_target, 0)
             bot.pathfinder.setGoal(goal, False)
             break
 
 
 def Start_pvp():
-    if coices.get('Player') != None and coices.get('Mod') != None:
-        if coices["Mod"] == "Hunt":
+    if choices.get('Player') != None and choices.get('Mod') != None:
+        if choices["Mod"] == "Hunt":
             start_pvp.place_forget()
             stop_pvp.place(x=350, y=145)
             hunting_proces = threading.Thread(target=Hunting)
             hunting_proces.start()
-        elif coices["Mod"] == "Folow":
+        elif choices["Mod"] == "Folow":
             start_pvp.place_forget()
             stop_pvp.place(x=350, y=145)
             folow_proces = threading.Thread(target=Folow)
@@ -99,10 +99,12 @@ def data_cleaning(data):
     return list(data_set)
 
 def pvp_menu():
-    players_scrol = generate_custom_menu_button(root, has_search_box=True, items=options[2], key='Player', text="Choose player")
-    mod_scrol = generate_custom_menu_button(root, has_search_box=False, items=options[0], key='Mod', text='Choose mod')
-    players_scrol.place(x=288,y=100)
+    mod_scrol = generate_custom_menu_button(root, has_search_box=False, items=options[0], key='Mod', text='Choose mod', all_buttons=buttons_list)
+    buttons_list.append(mod_scrol)
     mod_scrol.place(x=288, y = 225)
+    players_scrol = generate_custom_menu_button(root, has_search_box=True, items=options[2], key='Player', text="Choose player", all_buttons=buttons_list)
+    buttons_list.append(players_scrol)
+    players_scrol.place(x=288,y=100)
     start_pvp.place(x=350, y = 145)
     menu("Forgot")
 
@@ -226,10 +228,11 @@ def create_bot():
         messagebox.showerror("Invalid input", "Please provide valid server IP and port.")
 
 
-def generate_custom_menu_button(root, has_search_box, items, key, text):
+def generate_custom_menu_button(root, has_search_box, items, key, text, all_buttons):
     def toggle_menu(event=None):
         if menu.winfo_ismapped():
             menu.place_forget()
+            enable_buttons()
         else:
             button_pos_x, button_pos_y = button.winfo_rootx(), button.winfo_rooty() + button.winfo_height()
             menu_width = 130
@@ -237,6 +240,7 @@ def generate_custom_menu_button(root, has_search_box, items, key, text):
 
             root_x, root_y = root.winfo_rootx(), root.winfo_rooty()
             menu.place(x=(button_pos_x - root_x), y=(button_pos_y - root_y + distance_from_button), width=menu_width)
+            disable_other_buttons()
 
     def update_menu_items():
         if has_search_box:
@@ -255,8 +259,17 @@ def generate_custom_menu_button(root, has_search_box, items, key, text):
             selected_item = array_list.get(selected_index)
             button.config(text=selected_item)
             print("Выбрано:", selected_item)
-            coices[key] = selected_item
+            choices[key] = selected_item
             toggle_menu()
+
+    def disable_other_buttons():
+        for other_button in all_buttons:
+            if other_button != button:
+                other_button.config(state='disabled')
+
+    def enable_buttons():
+        for other_button in all_buttons:
+            other_button.config(state='normal')
 
     button = Button(root, text=text, width=17)
     button.bind('<Button-1>', toggle_menu)
@@ -303,8 +316,8 @@ ip.place(x=300, y=125)
 ip.insert(0, ip_text)
 
 bot_data = []
-
-coices = {}
+buttons_list = []
+choices = {}
 
 port = Entry(root, fg="gray")
 port.place(x=300, y=175)
