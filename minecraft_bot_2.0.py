@@ -1,5 +1,6 @@
 from tkinter import *
 from tkinter import messagebox
+from tkinter import ttk
 from PIL import Image, ImageTk
 from javascript import On, require
 import time
@@ -170,6 +171,44 @@ def port_focus_out(event):
         port.insert(0, "Server Port")
         port.config(fg='grey')
 
+list_1 = []
+
+def simulate_loading(i):
+    if i <= 30:
+        root.after(150, lambda: update_progress(i + 1))
+    elif 30 < i <= 70:
+        root.after(130, lambda: update_progress(i + 1))
+    elif 70 < i <= 87:
+        root.after(240, lambda: update_progress(i + 1))
+    elif 87 < i <= 95:
+        root.after(25, lambda: update_progress(i + 1))
+    elif 95 < i <= 99:
+        root.after(575, lambda: update_progress(i + 1))
+    else:
+        root.after(2250, lambda: update_progress(i + 1))
+
+def update_progress(i):
+    progressbar["value"] = i
+    root.update_idletasks()
+    
+    if i < 100:
+        simulate_loading(i)
+    else:
+        if len(list_1) == 0:
+            bot_data[0].end()
+            messagebox.showerror("Connection", "Connection error, pls try again")
+            ip.place(x=300, y=125)
+            port.place(x=300, y=175)
+            create_button.place(x=329, y=225)
+            bot_data.clear()
+        else:
+            players = data_cleaning(str(bot_data[0].players))
+            players.remove("DAI_BOT")
+            options.append(players)
+            menu("Place")
+        progressbar.place_forget()
+        list_1.clear()
+        
 
 def create_bot():
     try:
@@ -191,34 +230,19 @@ def create_bot():
                 'password': 'DAI1234',
             })
 
+            progressbar.place(x=265,y=175)
+
             bot.loadPlugin(pathfinder.pathfinder)
-            list_1 = []
-            
+
             @On(bot, 'spawn')
             def spawned(*args):
-                list_1.append(True)
+                list_1.insert(0,True)
                 mcData = require('minecraft-data')(bot.version)
                 options.append(bot.players.username)            
             
-            for i in range(9):
-                time.sleep(1)
-                if len(list_1) != 0:
-                    break
-
-            if len(list_1) == 0:
-                bot.end()
-                messagebox.showerror("Connection", "Connection error, pls try again")
-                ip.place(x=300, y=125)
-                port.place(x=300, y=175)
-                create_button.place(x=329, y=225)
-            else:
-                players = data_cleaning(str(bot.players))
-                players.remove("DAI_BOT")
-                options.append(players)
-                bot_data.append(bot)
-                menu("Place")
-            list_1.clear()
-
+            
+            bot_data.append(bot)
+            simulate_loading(0)
         else:
             messagebox.showerror("Error", "Socket error")
             ip.place(x=300, y=125)
@@ -357,6 +381,6 @@ create_button.place(x=329, y=225)
 start_pvp = Button(root, text='Start', command=Start_pvp)
 stop_pvp = Button(root, text='Stop', command=Stop_pvp)
 
-
+progressbar = ttk.Progressbar(root, orient="horizontal", length=200, mode="determinate")
 
 root.mainloop()
