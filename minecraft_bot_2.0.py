@@ -76,11 +76,13 @@ def Start_pvp():
     else:
         messagebox.showerror("Please choose", "Please choose target player and mod")
         pvp_menu()
-            
+
+
 stop_duel = [False]
 
 def Stop_pvp():
     stop_duel[0] = True
+
 
 def data_cleaning(data):
     cleaned_data = data.replace('\n', ' ').replace('\u001b[94m', '').replace('\u001b[39m', '').replace('\u001b[32m', '').replace('\u001b[33m', '').replace('\u001b[90m', '').replace('\u001b[95m', '').replace('\u001b[34m', '')
@@ -99,6 +101,7 @@ def data_cleaning(data):
 
     return list(data_set)
 
+
 def pvp_menu():
     mod_scrol = generate_custom_menu_button(root, has_search_box=False, items=options[0], key='Mod', text='Choose mod', all_buttons=buttons_list)
     buttons_list.append(mod_scrol)
@@ -112,6 +115,7 @@ def pvp_menu():
 
 def mining_menu():
     pass
+
 
 def menu(command):
     if command == "Place":
@@ -171,6 +175,7 @@ def port_focus_out(event):
         port.insert(0, "Server Port")
         port.config(fg='grey')
 
+
 list_1 = []
 
 def simulate_loading(i):
@@ -186,6 +191,7 @@ def simulate_loading(i):
         root.after(575, lambda: update_progress(i + 1))
     else:
         root.after(2250, lambda: update_progress(i + 1))
+
 
 def update_progress(i):
     progressbar["value"] = i
@@ -244,12 +250,13 @@ def create_bot():
             bot_data.append(bot)
             simulate_loading(0)
         else:
-            messagebox.showerror("Error", "Socket error")
+            messagebox.showerror("Error", f"Server {ip}:{port} isn't acsess")
             ip.place(x=300, y=125)
             port.place(x=300, y=175)
             create_button.place(x=329, y=225)
     else:
         messagebox.showerror("Invalid input", "Please provide valid server IP and port.")
+
 
 
 def generate_custom_menu_button(root, has_search_box, items, key, text, all_buttons):
@@ -315,11 +322,14 @@ def generate_custom_menu_button(root, has_search_box, items, key, text, all_butt
 
     return button
 
+
 previous_selection = "Choose Target"
 is_dropdown_open = False
 dropdown_window = None
 selected_item = previous_selection
 options = [["Hunt", "Deafend", "Folow"]]
+
+
 
 root = Tk()
 
@@ -353,16 +363,12 @@ port.bind("<FocusIn>", port_entry_click)
 port.bind("<FocusOut>", port_focus_out)
 
 original_image = Image.open("Minecraft_Bot_img/PVP.jpg")
-
 resized_image = original_image.resize((100, 100))
-
-
-
 pvp_photo = ImageTk.PhotoImage(resized_image)
+
 
 original_image = Image.open("Minecraft_Bot_img/Mining.jpg")
 resized_image = original_image.resize((100, 100))
-
 mining_photo = ImageTk.PhotoImage(resized_image)
 
 pvp_button = Button(root, image=pvp_photo, command=pvp_menu)
