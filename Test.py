@@ -1,47 +1,23 @@
 import tkinter as tk
-from tkinter import ttk
+from PIL import Image, ImageTk
 
-def on_loading_button_click():
-    loading_button.pack_forget()  # Скрыть кнопку
-    progressbar.pack(pady=50)  # Показать полосу загрузки
-    simulate_loading(0)
+window = tk.Tk()
 
-def simulate_loading(i):
-    if i <= 30:
-        root.after(150, lambda: update_progress(i + 1))
-    elif 30 < i <= 70:
-        root.after(130, lambda: update_progress(i + 1))
-    elif 70 < i <= 87:
-        root.after(240, lambda: update_progress(i + 1))
-    elif 87 < i <= 95:
-        root.after(25, lambda: update_progress(i + 1))
-    elif 95 < i <= 99:
-        root.after(575, lambda: update_progress(i + 1))
-    else:
-        root.after(2250, lambda: update_progress(i + 1))
+window.configure(bg='green')
 
-def update_progress(i):
-    progressbar["value"] = i
-    root.update_idletasks()
-    
-    if i < 100:
-        simulate_loading(i)
-    else:
-        print("Loading completed!")
-        show_loading_button()
+jpg_image = Image.open("Minecraft_Bot_img\Play.jpg")
+jpg_image = jpg_image.resize((50, 50))
 
-def show_loading_button():
-    progressbar.pack_forget()
-    loading_button.pack(pady=50)
+bg_image = Image.new('RGBA', (50, 50), color='green')
+bg_photo = ImageTk.PhotoImage(bg_image)
 
-root = tk.Tk()
-root.title("Главное окно")
+combined_image = Image.alpha_composite(bg_image, jpg_image)
+combined_photo = ImageTk.PhotoImage(combined_image)
 
-# Создаем кнопку
-loading_button = tk.Button(root, text="Начать загрузку", command=on_loading_button_click)
-loading_button.pack(pady=50)
+button = tk.Button(window, image=combined_photo, command=lambda: print("Button clicked"))
 
-# Создаем полосу загрузки
-progressbar = ttk.Progressbar(root, orient="horizontal", length=200, mode="determinate")
+button.config(borderwidth=0, highlightthickness=0)
 
-root.mainloop()
+button.pack()
+
+window.mainloop()

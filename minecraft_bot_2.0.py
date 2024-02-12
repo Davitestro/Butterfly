@@ -3,13 +3,14 @@ from tkinter import messagebox
 from tkinter import ttk
 from PIL import Image, ImageTk
 from javascript import On, require
-import time
 import math
 import socket
 import threading
 mineflayer = require('mineflayer')
 pathfinder = require('mineflayer-pathfinder')
 goalfollow = pathfinder.goals.GoalFollow
+
+
 
 def Hunting():
     bot = bot_data[0]
@@ -30,7 +31,7 @@ def Hunting():
 
         if stop_duel[0]:
             stop_pvp.place_forget()
-            start_pvp.place(x=288,y=150)
+            start_pvp.place(x=325,y=148)
             stop_duel[0] = False
             current_target = bot.players[choices['Player']].entity
             goal = goalfollow(current_target, 0)
@@ -51,7 +52,7 @@ def Folow():
     while True:
         if stop_duel[0]:
             stop_pvp.place_forget()
-            start_pvp.place(x=288,y=150)
+            start_pvp.place(x=325,y=148)
             stop_duel[0] = False
             current_target = bot.players[choices['Player']].entity
             goal = goalfollow(current_target, 0)
@@ -63,12 +64,12 @@ def Start_pvp():
     if choices.get('Player') != None and choices.get('Mod') != None:
         if choices["Mod"] == "Hunt":
             start_pvp.place_forget()
-            stop_pvp.place(x=350, y=145)
+            stop_pvp.place(x=325,y=148)
             hunting_proces = threading.Thread(target=Hunting)
             hunting_proces.start()
         elif choices["Mod"] == "Folow":
             start_pvp.place_forget()
-            stop_pvp.place(x=350, y=145)
+            stop_pvp.place(x=325,y=148)
             folow_proces = threading.Thread(target=Folow)
             folow_proces.start()
 
@@ -109,7 +110,7 @@ def pvp_menu():
     players_scrol = generate_custom_menu_button(root, has_search_box=True, items=options[2], key='Player', text="Choose player", all_buttons=buttons_list)
     buttons_list.append(players_scrol)
     players_scrol.place(x=288,y=100)
-    start_pvp.place(x=350, y = 145)
+    start_pvp.place(x=325, y=148)
     menu("Forgot")
 
 
@@ -244,13 +245,14 @@ def create_bot():
             def spawned(*args):
                 list_1.insert(0,True)
                 mcData = require('minecraft-data')(bot.version)
-                options.append(bot.players.username)            
+                options.append(bot.players.username)
             
             
             bot_data.append(bot)
             simulate_loading(0)
         else:
-            messagebox.showerror("Error", f"Server {ip}:{port} isn't acsess")
+            messagebox.showerror("Error", f"Server {server_ip}:{server_port} isn't acsess")
+            progressbar.place_forget()
             ip.place(x=300, y=125)
             port.place(x=300, y=175)
             create_button.place(x=329, y=225)
@@ -383,9 +385,34 @@ label_mining = Label(root, text="Mining")
 create_button = Button(root, text="Create Bot", command=create_bot)
 create_button.place(x=329, y=225)
 
+original_image = Image.open("Minecraft_Bot_img/Play.jpg")
+resized_image = original_image.resize((50, 50))
 
-start_pvp = Button(root, text='Start', command=Start_pvp)
-stop_pvp = Button(root, text='Stop', command=Stop_pvp)
+
+bg_image = Image.new('RGBA', (50, 50), color='green')
+bg_photo = ImageTk.PhotoImage(bg_image)
+
+combined_image = Image.alpha_composite(bg_image, resized_image)
+combined_photo = ImageTk.PhotoImage(combined_image)
+
+start_photo = ImageTk.PhotoImage(combined_image)
+
+start_pvp = Button(root, image = start_photo, command=Start_pvp)
+start_pvp.image = start_photo
+
+original_image = Image.open("Minecraft_Bot_img/Stop.jpg")
+resized_image = original_image.resize((50, 50))
+
+bg_image = Image.new('RGBA', (50, 50), color='green')
+bg_photo = ImageTk.PhotoImage(bg_image)
+
+combined_image = Image.alpha_composite(bg_image, resized_image)
+combined_photo = ImageTk.PhotoImage(combined_image)
+
+stop_photo = ImageTk.PhotoImage(combined_image)
+
+stop_pvp = Button(root, image=stop_photo, command=Stop_pvp)
+stop_pvp.image = stop_photo
 
 progressbar = ttk.Progressbar(root, orient="horizontal", length=200, mode="determinate")
 
