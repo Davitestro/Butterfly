@@ -3,6 +3,7 @@ from tkinter import messagebox
 from tkinter import ttk
 from PIL import Image, ImageTk
 from javascript import On, require
+import json
 import math
 import socket
 import threading
@@ -101,6 +102,13 @@ def data_cleaning(data):
             tega = False
 
     return list(data_set)
+
+
+def on_click_frame(event):
+    frame.focus_set()
+    ip_focus_out(0)
+    port_focus_out(0)
+    account_frame.place_forget()
 
 
 def pvp_menu():
@@ -214,8 +222,11 @@ def update_progress(i):
             options.append(players)
             menu("Place")
         progressbar.place_forget()
+        progressbar['value'] = 0
         list_1.clear()
-        
+
+def exit():
+    bot_data[0].end()
 
 def create_bot():
     try:
@@ -229,33 +240,34 @@ def create_bot():
     create_button.place_forget()
 
     if server_ip != "Server IP" and server_port != 0:
-        if check_server_status(server_ip, server_port):
-            bot = mineflayer.createBot({
-                'host': server_ip,
-                'port': server_port,
-                'username': 'DAI_BOT',
-                'password': 'DAI1234',
-            })
+        with open("Datas.json", 'r') as file:
+            file = json.load(file)
+            if check_server_status(server_ip, server_port):
+                bot = mineflayer.createBot({
+                    'host': server_ip,
+                    'port': server_port,
+                    'username': file["email"],
+                    'password': file["password"]
+                })
 
-            progressbar.place(x=265,y=175)
-
-            bot.loadPlugin(pathfinder.pathfinder)
-
-            @On(bot, 'spawn')
-            def spawned(*args):
-                list_1.insert(0,True)
-                mcData = require('minecraft-data')(bot.version)
-                options.append(bot.players.username)
-            
-            
-            bot_data.append(bot)
-            simulate_loading(0)
-        else:
-            messagebox.showerror("Error", f"Server {server_ip}:{server_port} isn't acsess")
-            progressbar.place_forget()
-            ip.place(x=300, y=125)
-            port.place(x=300, y=175)
-            create_button.place(x=329, y=225)
+                progressbar.place(x=265,y=175)
+                bot.loadPlugin(pathfinder.pathfinder)
+                
+                @On(bot, 'spawn')
+                def spawned(*args):
+                    list_1.insert(0,True)
+                    mcData = require('minecraft-data')(bot.version)
+                    options.append(bot.players.username)
+                
+                
+                bot_data.append(bot)
+                simulate_loading(0)
+            else:
+                messagebox.showerror("Error", f"Server {server_ip}:{server_port} isn't acsess")
+                progressbar.place_forget()
+                ip.place(x=300, y=125)
+                port.place(x=300, y=175)
+                create_button.place(x=329, y=225)
     else:
         messagebox.showerror("Invalid input", "Please provide valid server IP and port.")
 
@@ -324,6 +336,42 @@ def generate_custom_menu_button(root, has_search_box, items, key, text, all_butt
 
     return button
 
+def login():
+    email = email_entry.get().strip()
+    password = password_entry.get().strip()
+    if email == "":
+        messagebox.showerror("Incorect username", "You can't authorize account without username")
+    else:
+        data = {
+            "email": email,
+            "password": password
+        }
+
+        with open("Datas.json", "w") as file:
+            json.dump(data, file)
+        
+        print("Email:", email)
+        print("Password:", password)
+        check(0)
+
+
+def toggle_frame():
+    if account_frame.winfo_ismapped():
+        account_frame.place_forget()
+    else:
+        account_frame.place(in_=root, x=0, y=45, relwidth=width, relheight=height)
+
+def set_frame_size(width, height):
+    account_frame.config(width=width, height=height)
+    root.update_idletasks()
+
+def check(event):
+    with open("Datas.json", "r") as file:
+        file = json.load(file)
+        if file["email"] == email_entry.get().strip() and file["password"] == password_entry.get().strip():
+            login_button.configure(state="disabled")
+        else:
+            login_button.configure(state='normal')
 
 previous_selection = "Choose Target"
 is_dropdown_open = False
@@ -343,6 +391,7 @@ root.resizable(width=False, height=False)
 
 frame = Frame(root, bg="green")
 frame.place(relheight=1,relwidth=1)
+frame.bind("<Button-1>", on_click_frame)
 
 ip_text = "Server IP"
 port_text = "Server Port"
@@ -397,7 +446,7 @@ combined_photo = ImageTk.PhotoImage(combined_image)
 
 start_photo = ImageTk.PhotoImage(combined_image)
 
-start_pvp = Button(root, image = start_photo, command=Start_pvp)
+start_pvp = Button(root, image = start_photo, command=Start_pvp, bg='green', fg='green')
 start_pvp.image = start_photo
 
 original_image = Image.open("Minecraft_Bot_img/Stop.jpg")
@@ -411,9 +460,53 @@ combined_photo = ImageTk.PhotoImage(combined_image)
 
 stop_photo = ImageTk.PhotoImage(combined_image)
 
-stop_pvp = Button(root, image=stop_photo, command=Stop_pvp)
+stop_pvp = Button(root, image=stop_photo, command=Stop_pvp, bg='green', fg='green')
 stop_pvp.image = stop_photo
 
 progressbar = ttk.Progressbar(root, orient="horizontal", length=200, mode="determinate")
+
+top_line_frame = Frame(root, bg="#8B4513", height=3)
+top_line_frame.pack(fill=X)
+
+original_image = Image.open("Minecraft_Bot_img/Account.png")
+resized_image = original_image.resize((40, 40))
+account_png = ImageTk.PhotoImage(resized_image)
+
+toggle_button = Button(top_line_frame, image=account_png, command=toggle_frame, bg="#8B4513", fg="#FFFFFF")
+toggle_button.pack(side=LEFT, padx=0)
+
+frame_width = 200
+frame_height = 150
+account_frame = Frame(root,width=frame_width, height=frame_height, bg='#8B4513', bd=1, relief=SOLID)
+
+email_label = Label(account_frame, text="Username:", bg='#8B4513', fg='#FFFFFF')
+email_label.grid(row=0, column=0, padx=5, pady=5)
+email_entry = Entry(account_frame)
+email_entry.grid(row=0, column=1, padx=5, pady=5)
+
+password_label = Label(account_frame, text="Password:", bg='#8B4513', fg='#FFFFFF')
+password_label.grid(row=1, column=0, padx=5, pady=5)
+password_entry = Entry(account_frame, show="*")
+password_entry.grid(row=1, column=1, padx=5, pady=5)
+
+email_entry.bind("<KeyRelease>", check)
+password_entry.bind("<KeyRelease>", check)
+
+with open("Datas.json", 'r') as file:
+    file = json.load(file)
+    email_entry.insert(0, file["email"])
+    password_entry.insert(0, file["password"])
+
+login_button = Button(account_frame, text="Authorize", command=login, bg="#8B4513", fg="#FFFFFF")
+login_button.grid(row=2, columnspan=2, pady=10)
+
+exit_button = Button(account_frame, text="Exit", command=exit, bg="#8B4513", fg="#FFFFFF")
+
+account_frame.place_forget()
+
+check(0)
+
+width = 0.3
+height = 0.3
 
 root.mainloop()

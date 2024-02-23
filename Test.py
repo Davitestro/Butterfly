@@ -1,21 +1,25 @@
 from tkinter import *
+from tkinter import messagebox
 from PIL import Image, ImageTk
 import json
 
 def login():
     email = email_entry.get().strip()
     password = password_entry.get().strip()
-    data = {
-        "email": email,
-        "password": password
-    }
+    if email == "":
+        messagebox.showerror("Incorect username", "You can't authorize account without username")
+    else:
+        data = {
+            "email": email,
+            "password": password
+        }
 
-    with open("Datas.json", "w") as file:
-        json.dump(data, file)
-    
-    print("Email:", email)
-    print("Password:", password)
-    check(0)
+        with open("Datas.json", "w") as file:
+            json.dump(data, file)
+        
+        print("Email:", email)
+        print("Password:", password)
+        check(0)
 
 
 def toggle_frame():
@@ -58,7 +62,7 @@ frame_width = 200
 frame_height = 150
 frame = Frame(root,width=frame_width, height=frame_height, bg='#8B4513', bd=1, relief=SOLID)
 
-email_label = Label(frame, text="Email:", bg='#8B4513', fg='#FFFFFF')
+email_label = Label(frame, text="Username:", bg='#8B4513', fg='#FFFFFF')
 email_label.grid(row=0, column=0, padx=5, pady=5)
 email_entry = Entry(frame)
 email_entry.grid(row=0, column=1, padx=5, pady=5)
