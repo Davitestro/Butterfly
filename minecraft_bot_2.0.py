@@ -112,12 +112,12 @@ def on_click_frame(event):
 
 
 def pvp_menu():
-    mod_scrol = generate_custom_menu_button(root, has_search_box=False, items=options[0], key='Mod', text='Choose mod', all_buttons=buttons_list)
-    buttons_list.append(mod_scrol)
-    mod_scrol.place(x=288, y = 225)
-    players_scrol = generate_custom_menu_button(root, has_search_box=True, items=options[2], key='Player', text="Choose player", all_buttons=buttons_list)
-    buttons_list.append(players_scrol)
-    players_scrol.place(x=288,y=100)
+    mod_scrol.items = options[0]
+    players_scrol.items = options[2]
+    mod_scrol.update_menu_items()
+    players_scrol.update_menu_items()
+    mod_scrol.button.place(x=288, y = 225)
+    players_scrol.button.place(x=288,y=100)
     start_pvp.place(x=325, y=148)
     menu("Forgot")
 
@@ -221,6 +221,25 @@ def update_progress(i):
             players.remove("DAI_BOT")
             options.append(players)
             menu("Place")
+
+
+            @On(bot_data[0], "playerJoined")
+            def tab_update(first, seconde):
+                players = data_cleaning(str(bot_data[0].players))
+                players.remove("DAI_BOT")
+                options[2] = players
+                players_scrol.items = options[2]
+                players_scrol.update_menu_items()
+
+
+            @On(bot_data[0], "playerLeft")
+            def tab_update(first, seconde):
+                players = data_cleaning(str(bot_data[0].players))
+                players.remove("DAI_BOT")
+                options[2] = players
+                players_scrol.items = options[2]
+                players_scrol.update_menu_items()
+
         progressbar.place_forget()
         progressbar['value'] = 0
         list_1.clear()
@@ -273,68 +292,64 @@ def create_bot():
 
 
 
-def generate_custom_menu_button(root, has_search_box, items, key, text, all_buttons):
-    def toggle_menu(event=None):
-        if menu.winfo_ismapped():
-            menu.place_forget()
-            enable_buttons()
+class CustomMenuButton:
+    def __init__(self, root, has_search_box, items, key, text):
+        self.root = root
+        self.has_search_box = has_search_box
+        self.items = items
+        self.key = key
+        self.text = text
+
+        self.button = Button(root, text=text, width=17)
+        self.button.bind('<Button-1>', self.toggle_menu)
+
+        self.menu = Frame(root, width=130, height=200, bg='white', bd=1, relief=SOLID)
+
+        self.array_list = Listbox(self.menu, bg='white', selectbackground='lightgray')
+        self.array_list.pack(fill='both', expand=True)
+
+
+        if self.has_search_box:
+            self.search_entry = Entry(self.menu)
+            self.search_entry.pack(fill='x')
+            self.search_entry.bind('<KeyRelease>', lambda event: self.update_menu_items())
+        self.update_menu_items()
+
+        self.array_list.bind('<<ListboxSelect>>', self.on_select)
+
+        self.menu.place_forget()
+
+    def toggle_menu(self, event=None):
+        if self.menu.winfo_ismapped():
+            self.menu.place_forget()
         else:
-            button_pos_x, button_pos_y = button.winfo_rootx(), button.winfo_rooty() + button.winfo_height()
+            button_pos_x, button_pos_y = self.button.winfo_rootx(), self.button.winfo_rooty() + self.button.winfo_height()
             menu_width = 130
             distance_from_button = 0
 
-            root_x, root_y = root.winfo_rootx(), root.winfo_rooty()
-            menu.place(x=(button_pos_x - root_x), y=(button_pos_y - root_y + distance_from_button), width=menu_width)
-            disable_other_buttons()
+            root_x, root_y = self.root.winfo_rootx(), self.root.winfo_rooty()
+            self.menu.place(x=(button_pos_x - root_x), y=(button_pos_y - root_y + distance_from_button), width=menu_width)
 
-    def update_menu_items():
-        if has_search_box:
-            search_text = search_entry.get().lower()
-            filtered_items = [item for item in items if search_text in item.lower()]
-            array_list.delete(0, END)
+    def update_menu_items(self):
+        if self.has_search_box:
+            search_text = self.search_entry.get().lower()
+            filtered_items = [item for item in self.items if search_text in item.lower()]
+            self.array_list.delete(0, END)
             for item in filtered_items:
-                array_list.insert(END, item)
+                self.array_list.insert(END, item)
         else:
-            for item in items:
-                array_list.insert(END, item)
+            self.array_list.delete(0, END)
+            for item in self.items:
+                self.array_list.insert(END, item)
 
-    def on_select(event):
-        selected_index = array_list.curselection()
+    def on_select(self, event):
+        selected_index = self.array_list.curselection()
         if selected_index:
-            selected_item = array_list.get(selected_index)
-            button.config(text=selected_item)
+            selected_item = self.array_list.get(selected_index)
+            self.button.config(text=selected_item)
             print("Выбрано:", selected_item)
-            choices[key] = selected_item
-            toggle_menu()
-
-    def disable_other_buttons():
-        for other_button in all_buttons:
-            if other_button != button:
-                other_button.config(state='disabled')
-
-    def enable_buttons():
-        for other_button in all_buttons:
-            other_button.config(state='normal')
-
-    button = Button(root, text=text, width=17)
-    button.bind('<Button-1>', toggle_menu)
-
-    menu = Frame(root, width=130, height=200, bg='white', bd=1, relief=SOLID)
-
-    array_list = Listbox(menu, bg='white', selectbackground='lightgray')
-    array_list.pack(fill='both', expand=True)
-
-    if has_search_box:
-        search_entry = Entry(menu)
-        search_entry.pack(fill='x') 
-        search_entry.bind('<KeyRelease>', lambda event: update_menu_items())
-    update_menu_items()
-
-    array_list.bind('<<ListboxSelect>>', on_select)
-
-    menu.place_forget()
-
-    return button
+            choices[self.key] = selected_item
+            self.toggle_menu()
 
 def login():
     email = email_entry.get().strip()
@@ -462,6 +477,10 @@ stop_photo = ImageTk.PhotoImage(combined_image)
 
 stop_pvp = Button(root, image=stop_photo, command=Stop_pvp, bg='green', fg='green')
 stop_pvp.image = stop_photo
+
+mod_scrol = CustomMenuButton(root, has_search_box=False, items=[], key='Mod', text='Choose mod')
+
+players_scrol = CustomMenuButton(root, has_search_box=True, items=[], key='Player', text="Choose player")
 
 progressbar = ttk.Progressbar(root, orient="horizontal", length=200, mode="determinate")
 

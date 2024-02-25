@@ -1,93 +1,91 @@
 from tkinter import *
-from tkinter import messagebox
-from PIL import Image, ImageTk
-import json
 
-def login():
-    email = email_entry.get().strip()
-    password = password_entry.get().strip()
-    if email == "":
-        messagebox.showerror("Incorect username", "You can't authorize account without username")
-    else:
-        data = {
-            "email": email,
-            "password": password
-        }
+class CustomMenuButton:
+    def __init__(self, root, has_search_box, items, key, text, all_buttons):
+        self.root = root
+        self.has_search_box = has_search_box
+        self.items = items
+        self.key = key
+        self.text = text
+        self.all_buttons = all_buttons
 
-        with open("Datas.json", "w") as file:
-            json.dump(data, file)
-        
-        print("Email:", email)
-        print("Password:", password)
-        check(0)
+        self.button = Button(root, text=text, width=17)
+        self.button.bind('<Button-1>', self.toggle_menu)
+
+        self.menu = Frame(root, width=130, height=200, bg='white', bd=1, relief=SOLID)
+
+        self.array_list = Listbox(self.menu, bg='white', selectbackground='lightgray')
+        self.array_list.pack(fill='both', expand=True)
 
 
-def toggle_frame():
-    if frame.winfo_ismapped():
-        frame.place_forget()
-    else:
-        frame.place(in_=root, x=0, y=45, relwidth=width, relheight=height)
+        if self.has_search_box:
+            self.search_entry = Entry(self.menu)
+            self.search_entry.pack(fill='x')
+            self.search_entry.bind('<KeyRelease>', lambda event: self.update_menu_items())
+        self.update_menu_items()
 
-def set_frame_size(width, height):
-    frame.config(width=width, height=height)
-    root.update_idletasks()
+        self.array_list.bind('<<ListboxSelect>>', self.on_select)
 
-def check(event):
-    with open("Datas.json", "r") as file:
-        file = json.load(file)
-        if file["email"] == email_entry.get().strip() and file["password"] == password_entry.get().strip():
-            login_button.configure(state="disabled")
+        self.menu.place_forget()
+
+    def toggle_menu(self, event=None):
+        if self.menu.winfo_ismapped():
+            self.menu.place_forget()
+            self.enable_buttons()
         else:
-            login_button.configure(state='normal')
+            button_pos_x, button_pos_y = self.button.winfo_rootx(), self.button.winfo_rooty() + self.button.winfo_height()
+            menu_width = 130
+            distance_from_button = 0
 
+            root_x, root_y = self.root.winfo_rootx(), self.root.winfo_rooty()
+            self.menu.place(x=(button_pos_x - root_x), y=(button_pos_y - root_y + distance_from_button), width=menu_width)
+            self.disable_other_buttons()
 
+    def update_menu_items(self):
+        if self.has_search_box:
+            search_text = self.search_entry.get().lower()
+            filtered_items = [item for item in self.items if search_text in item.lower()]
+            self.array_list.delete(0, END)
+            for item in filtered_items:
+                self.array_list.insert(END, item)
+        else:
+            self.array_list.delete(0, END)
+            for item in self.items:
+                self.array_list.insert(END, item)
+
+    def on_select(self, event):
+        selected_index = self.array_list.curselection()
+        if selected_index:
+            selected_item = self.array_list.get(selected_index)
+            self.button.config(text=selected_item)
+            print("Выбрано:", selected_item)
+            self.toggle_menu()
+
+    def disable_other_buttons(self):
+        for other_button in self.all_buttons:
+            if other_button != self.button:
+                other_button.config(state='disabled')
+
+    def enable_buttons(self):
+        for other_button in self.all_buttons:
+            other_button.config(state='normal')
+
+# Пример использования
 root = Tk()
-root['bg'] = "#FFFFFF"
-root.title("Minecraft Bot")
-root.wm_attributes('-alpha', 0.95)
 root.geometry('700x350')
 root.resizable(width=False, height=False)
 
-top_line_frame = Frame(root, bg="#8B4513", height=3)
-top_line_frame.pack(fill=X)
+frame = Frame(root, bg="green")
+frame.place(relheight=1,relwidth=1)
 
-original_image = Image.open("Minecraft_Bot_img/Account.png")
-resized_image = original_image.resize((40, 40))
-account_png = ImageTk.PhotoImage(resized_image)
+options = [["Option 1", "Option 2", "Option 3"]]
+buttons_list = []
+mod_scrol = CustomMenuButton(root, has_search_box=False, items=options[0], key='Mod', text='Choose mod', all_buttons=buttons_list)
+eli_button = CustomMenuButton(root, has_search_box=True, items=["Mek","Erku"], key='mi ban', text='Choose miaban', all_buttons=buttons_list)
+mod_scrol.items = ['0','1','2']
+mod_scrol.update_menu_items()
+eli_button.button.place(x=350, y=100)
+mod_scrol.button.place(x=350, y=200)
 
-toggle_button = Button(top_line_frame, image=account_png, command=toggle_frame, bg="#8B4513", fg="#FFFFFF")
-toggle_button.pack(side=LEFT, padx=0)
-
-frame_width = 200
-frame_height = 150
-frame = Frame(root,width=frame_width, height=frame_height, bg='#8B4513', bd=1, relief=SOLID)
-
-email_label = Label(frame, text="Username:", bg='#8B4513', fg='#FFFFFF')
-email_label.grid(row=0, column=0, padx=5, pady=5)
-email_entry = Entry(frame)
-email_entry.grid(row=0, column=1, padx=5, pady=5)
-
-password_label = Label(frame, text="Password:", bg='#8B4513', fg='#FFFFFF')
-password_label.grid(row=1, column=0, padx=5, pady=5)
-password_entry = Entry(frame, show="*")
-password_entry.grid(row=1, column=1, padx=5, pady=5)
-
-email_entry.bind("<KeyRelease>", check)
-password_entry.bind("<KeyRelease>", check)
-
-with open("Datas.json", 'r') as file:
-    file = json.load(file)
-    email_entry.insert(0, file["email"])
-    password_entry.insert(0, file["password"])
-
-login_button = Button(frame, text="Authorize", command=login, bg="#8B4513", fg="#FFFFFF")
-login_button.grid(row=2, columnspan=2, pady=10)
-
-frame.place_forget()
-
-check(0)
-
-width = 0.3
-height = 0.3
 
 root.mainloop()
