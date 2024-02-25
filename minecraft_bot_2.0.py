@@ -461,7 +461,7 @@ combined_photo = ImageTk.PhotoImage(combined_image)
 
 start_photo = ImageTk.PhotoImage(combined_image)
 
-start_pvp = Button(root, image = start_photo, command=Start_pvp, bg='green', fg='green')
+start_pvp = Button(root, image = start_photo, bd=0, command=Start_pvp, bg='green', fg='green')
 start_pvp.image = start_photo
 
 original_image = Image.open("Minecraft_Bot_img/Stop.jpg")
@@ -475,7 +475,7 @@ combined_photo = ImageTk.PhotoImage(combined_image)
 
 stop_photo = ImageTk.PhotoImage(combined_image)
 
-stop_pvp = Button(root, image=stop_photo, command=Stop_pvp, bg='green', fg='green')
+stop_pvp = Button(root, image=stop_photo, bd=0,command=Stop_pvp, bg='green', fg='green')
 stop_pvp.image = stop_photo
 
 mod_scrol = CustomMenuButton(root, has_search_box=False, items=[], key='Mod', text='Choose mod')
