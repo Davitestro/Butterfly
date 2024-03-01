@@ -16,7 +16,7 @@ goalfollow = pathfinder.goals.GoalFollow
 
 
 def Hunting():
-    bot = bot_data[0]
+    global bot
     mcData = require('minecraft-data')(bot.version)
     movements = pathfinder.Movements(bot, mcData)
     bot.pathfinder.setMovements(movements)
@@ -36,14 +36,15 @@ def Hunting():
             stop_pvp.place_forget()
             start_pvp.place(x=325,y=148)
             stop_duel[0] = False
-            current_target = bot.players[choices['Player']].entity
-            goal = goalfollow(current_target, 0)
-            bot.pathfinder.setGoal(goal, False)
-            break
+            with open("Datas.json", 'r') as file:
+                current_target = bot.players[json.load(file)["email"]].entity
+                goal = goalfollow(current_target, 0)
+                bot.pathfinder.setGoal(goal, False)
+                break
 
 
 def Folow():
-    bot = bot_data[0]
+    global bot
     mcData = require('minecraft-data')(bot.version)
     movements = pathfinder.Movements(bot, mcData)
     bot.pathfinder.setMovements(movements)
@@ -57,10 +58,11 @@ def Folow():
             stop_pvp.place_forget()
             start_pvp.place(x=325,y=148)
             stop_duel[0] = False
-            current_target = bot.players[choices['Player']].entity
-            goal = goalfollow(current_target, 0)
-            bot.pathfinder.setGoal(goal, False)
-            break
+            with open("Datas.json", 'r') as file:
+                current_target = bot.players[json.load(file)["email"]].entity
+                goal = goalfollow(current_target, 0)
+                bot.pathfinder.setGoal(goal, False)
+                break
 
 
 def Start_pvp():
@@ -128,17 +130,22 @@ def head():
     global h_clicked
     h_clicked = not h_clicked
     if h_clicked:
+        bot.settings.skinParts.showHat = False
         Head_Button.config(image=head_photo)
     else:
+        bot.settings.skinParts.showHat = True
         Head_Button.config(image=Head_photo)
+
 
 b_clicked = False
 def body():
     global b_clicked
     b_clicked = not b_clicked
     if b_clicked:
+        bot.settings.skinParts.showJacket = False
         Body_Button.config(image=body_photo)
     else:
+        bot.settings.skinParts.showJacket = True
         Body_Button.config(image=Body_photo)
 
 
@@ -147,8 +154,10 @@ def rightArm():
     global ra_clicked
     ra_clicked = not ra_clicked
     if ra_clicked:
+        bot.settings.skinParts.showLeftSleeve = False
         RightArm_Button.config(image=right_arm_photo)
     else:
+        bot.settings.skinParts.showLeftSleeve = True
         RightArm_Button.config(image=Right_Arm_photo)
 
 
@@ -157,8 +166,10 @@ def leftArm():
     global la_clicked
     la_clicked = not la_clicked
     if la_clicked:
+        bot.settings.skinParts.showRightSleeve = False
         LeftArm_Button.config(image=left_arm_photo)
     else:
+        bot.settings.skinParts.showRightSleeve = True
         LeftArm_Button.config(image=LeftArm_photo)
 
 rl_clicked = False
@@ -166,8 +177,10 @@ def rightLeg():
     global rl_clicked
     rl_clicked = not rl_clicked
     if rl_clicked:
+        bot.settings.skinParts.showLeftPants = False
         RightLeg_Button.config(image=right_leg_photo)
     else:
+        bot.settings.skinParts.showLeftPants = True
         RightLeg_Button.config(image=Right_Leg_photo)
 
 
@@ -176,8 +189,10 @@ def leftLeg():
     global ll_clicked
     ll_clicked = not ll_clicked
     if ll_clicked:
+        bot.settings.skinParts.showRightPants = False
         LeftLeg_Button.config(image=left_leg_photo)
     else:
+        bot.settings.skinParts.showRightPants = True
         LeftLeg_Button.config(image=Left_Leg_photo)
 
 def mining_menu():
@@ -268,15 +283,16 @@ def update_progress(i):
     if i < 100:
         simulate_loading(i)
     else:
+        global bot
         if len(list_1) == 0:
-            bot_data[0].end()
+            bot.end()
             messagebox.showerror("Connection", "Connection error, pls try again")
             ip.place(x=300, y=125)
             port.place(x=300, y=175)
             create_button.place(x=329, y=225)
-            bot_data.clear()
+            bot = None
         else:
-            players = data_cleaning(str(bot_data[0].players))
+            players = data_cleaning(str(bot.players))
             players.remove("DAI_BOT")
             options.append(players)
             menu("Place")
@@ -305,29 +321,43 @@ def update_progress(i):
 
                 email_label.update_idletasks()
 
-            @On(bot_data[0], "playerJoined")
+            bot.settings.skinParts.showHat = True
+            bot.settings.skinParts.showJacket = True
+            bot.settings.skinParts.showLeftSleeve = True
+            bot.settings.skinParts.showRightSleeve = True
+            bot.settings.skinParts.showLeftPants = True
+            bot.settings.skinParts.showRightPant = True
+
+            @On(bot, "playerJoined")
             def tab_update(first, seconde):
-                players = data_cleaning(str(bot_data[0].players))
+                players = data_cleaning(str(bot.players))
                 players.remove("DAI_BOT")
                 options[2] = players
                 players_scrol.items = options[2]
                 players_scrol.update_menu_items()
 
 
-            @On(bot_data[0], "playerLeft")
+            @On(bot, "playerLeft")
             def tab_update(first, seconde):
-                players = data_cleaning(str(bot_data[0].players))
+                players = data_cleaning(str(bot.players))
                 players.remove("DAI_BOT")
                 options[2] = players
                 players_scrol.items = options[2]
                 players_scrol.update_menu_items()
+            
+            @On(bot, "death")
+            def dy(event):
+                Stop_pvp()
+                bot.chat(f"I killed at x {str(bot.entity.position.x)} y {str(bot.entity.position.y)} z {str(bot.entity.position.z)}")
+                bot.respawn()
+
 
         progressbar.place_forget()
         progressbar['value'] = 0
         list_1.clear()
 
 def exit():
-    bot_data[0].end()
+    bot.end()
 
 def create_bot():
     try:
@@ -341,6 +371,7 @@ def create_bot():
     create_button.place_forget()
 
     if server_ip != "Server IP" and server_port != 0:
+        global bot
         with open("Datas.json", 'r') as file:
             file = json.load(file)
             if check_server_status(server_ip, server_port):
@@ -360,8 +391,6 @@ def create_bot():
                     mcData = require('minecraft-data')(bot.version)
                     options.append(bot.players.username)
                 
-                
-                bot_data.append(bot)
                 simulate_loading(0)
             else:
                 messagebox.showerror("Error", f"Server {server_ip}:{server_port} isn't acsess")
@@ -481,7 +510,7 @@ def ex():
     height = 0.3
 
 def call_inv():
-    inventoryViewer(bot_data[0])
+    inventoryViewer(bot)
     subprocess.Popen(["python", "-c", "import webview; webview.create_window('Inventory', 'http://localhost:3000/'); webview.start()"])
 
 def call_radar():
@@ -535,7 +564,7 @@ ip = Entry(root, fg="gray")
 ip.place(x=300, y=125)
 ip.insert(0, ip_text)
 
-bot_data = []
+bot = None
 buttons_list = []
 choices = {}
 
@@ -581,7 +610,7 @@ combined_photo = ImageTk.PhotoImage(combined_image)
 
 start_photo = ImageTk.PhotoImage(combined_image)
 
-start_pvp = Button(root, image = start_photo, bd=0, command=Start_pvp, bg='green', fg='green')
+start_pvp = Button(root, image = start_photo, bd=0, command=Start_pvp, bg='green', fg='green', activebackground='green')
 start_pvp.image = start_photo
 
 original_image = Image.open("Minecraft_Bot_img/Stop.jpg")
@@ -595,7 +624,7 @@ combined_photo = ImageTk.PhotoImage(combined_image)
 
 stop_photo = ImageTk.PhotoImage(combined_image)
 
-stop_pvp = Button(root, image=stop_photo, bd=0,command=Stop_pvp, bg='green', fg='green')
+stop_pvp = Button(root, image=stop_photo, bd=0,command=Stop_pvp, bg='green', fg='green', activebackground='green')
 stop_pvp.image = stop_photo
 
 mod_scrol = CustomMenuButton(root, has_search_box=False, items=[], key='Mod', text='Choose mod')
