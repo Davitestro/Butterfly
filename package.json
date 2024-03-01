@@ -1,5 +1,7 @@
 {
   "dependencies": {
-    "mineflayer-pathfinder": "^2.4.5"
+    "mineflayer": "^4.20.0",
+    "mineflayer-pathfinder": "^2.4.5",
+    "mineflayer-web-inventory": "^1.8.4"
   }
 }

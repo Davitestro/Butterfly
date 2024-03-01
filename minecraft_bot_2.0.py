@@ -6,9 +6,11 @@ from javascript import On, require
 import json
 import math
 import socket
+import subprocess
 import threading
 mineflayer = require('mineflayer')
 pathfinder = require('mineflayer-pathfinder')
+inventoryViewer = require('mineflayer-web-inventory')
 goalfollow = pathfinder.goals.GoalFollow
 
 
@@ -121,6 +123,62 @@ def pvp_menu():
     start_pvp.place(x=325, y=148)
     menu("Forgot")
 
+h_clicked = False
+def head():
+    global h_clicked
+    h_clicked = not h_clicked
+    if h_clicked:
+        Head_Button.config(image=head_photo)
+    else:
+        Head_Button.config(image=Head_photo)
+
+b_clicked = False
+def body():
+    global b_clicked
+    b_clicked = not b_clicked
+    if b_clicked:
+        Body_Button.config(image=body_photo)
+    else:
+        Body_Button.config(image=Body_photo)
+
+
+ra_clicked = False
+def rightArm():
+    global ra_clicked
+    ra_clicked = not ra_clicked
+    if ra_clicked:
+        RightArm_Button.config(image=right_arm_photo)
+    else:
+        RightArm_Button.config(image=Right_Arm_photo)
+
+
+la_clicked = False
+def leftArm():
+    global la_clicked
+    la_clicked = not la_clicked
+    if la_clicked:
+        LeftArm_Button.config(image=left_arm_photo)
+    else:
+        LeftArm_Button.config(image=LeftArm_photo)
+
+rl_clicked = False
+def rightLeg():
+    global rl_clicked
+    rl_clicked = not rl_clicked
+    if rl_clicked:
+        RightLeg_Button.config(image=right_leg_photo)
+    else:
+        RightLeg_Button.config(image=Right_Leg_photo)
+
+
+ll_clicked = False
+def leftLeg():
+    global ll_clicked
+    ll_clicked = not ll_clicked
+    if ll_clicked:
+        LeftLeg_Button.config(image=left_leg_photo)
+    else:
+        LeftLeg_Button.config(image=Left_Leg_photo)
 
 def mining_menu():
     pass
@@ -160,11 +218,11 @@ def check_server_status(server_address, port):
 def on_login():
     print("Bot connected successfully!")
 
-
 def ip_entry_click(event):
     if ip.get() == "Server IP":
         ip.delete(0, "end")
         ip.config(fg='black')
+    account_frame.place_forget()
 
 
 def ip_focus_out(event):
@@ -177,6 +235,7 @@ def port_entry_click(event):
     if port.get() == "Server Port":
         port.delete(0, "end")
         port.config(fg='black')
+    account_frame.place_forget()
 
 
 def port_focus_out(event):
@@ -221,7 +280,30 @@ def update_progress(i):
             players.remove("DAI_BOT")
             options.append(players)
             menu("Place")
+            global height
+            account_frame.place_forget()
+            email_entry.grid_forget()
+            password_entry.grid_forget()
+            password_label.grid_forget()
+            login_button.grid_forget()
+            Head_Button.place(relx=0.5,rely=0.302, anchor='center')
+            Body_Button.place(relx=0.502,rely=0.49, anchor='center')
+            LeftArm_Button.place(relx=0.37,rely=0.49, anchor='center')
+            RightArm_Button.place(relx=0.64,rely=0.49, anchor='center')
+            LeftLeg_Button.place(relx=0.411,rely=0.593)
+            RightLeg_Button.place(relx=0.5,rely=0.593)
+            inventory_button.place(relx=0.1,rely=0.85)
+            exit_button.place(relx=0.43,rely=0.85)
+            radar_button.place(relx=0.61,rely=0.85)
 
+            height = 0.7
+
+            with open("Datas.json", 'r') as file:
+                file = json.load(file)
+                email_label.config(text=file['email'], font=("Helvetica", 12), anchor="center", justify="center")
+                email_label.place(relx=0.5, rely=0.1, anchor="center")
+
+                email_label.update_idletasks()
 
             @On(bot_data[0], "playerJoined")
             def tab_update(first, seconde):
@@ -369,12 +451,50 @@ def login():
         print("Password:", password)
         check(0)
 
+def ex():
+    global height
+    Head_Button.place_forget()
+    Body_Button.place_forget()
+    LeftArm_Button.place_forget()
+    RightArm_Button.place_forget()
+    LeftLeg_Button.place_forget()
+    RightLeg_Button.place_forget()
+    account_frame.place_forget()
+    exit_button.place_forget()
+    inventory_button.place_forget()
+    radar_button.place_forget()
+    login_button.grid(row=2, columnspan=2, pady=10)
+    email_entry.grid(row=0, column=1, padx=5, pady=5)
+    email_label.config(text="Username:", font=("Helvetica", 8), anchor="w", justify="left")
+    email_label.grid(row=0, column=0, padx=5, pady=5)
+    password_label.grid(row=1, column=0, padx=5, pady=5)
+    password_entry.grid(row=1, column=1, padx=5, pady=5)
+    exit()
+    mod_scrol.button.place_forget()
+    players_scrol.button.place_forget()
+    start_pvp.place_forget()
+    ip.place(x=300, y=125)
+    port.place(x=300, y=175)
+    create_button.place(x=329, y=225)
+    frame.focus_set()
+    menu("Forgot")
+    height = 0.3
+
+def call_inv():
+    inventoryViewer(bot_data[0])
+    subprocess.Popen(["python", "-c", "import webview; webview.create_window('Inventory', 'http://localhost:3000/'); webview.start()"])
+
+def call_radar():
+    subprocess.Popen(["python", "-c", "import webview; webview.create_window('Radar', 'https://www.youtube.com/'); webview.start()"])
 
 def toggle_frame():
     if account_frame.winfo_ismapped():
         account_frame.place_forget()
     else:
-        account_frame.place(in_=root, x=0, y=45, relwidth=width, relheight=height)
+        account_frame.place(in_=root, x=0, y=42, relwidth=width, relheight=height)
+        account_frame.focus_set()
+        ip_focus_out(0)
+        port_focus_out(0)
 
 def set_frame_size(width, height):
     account_frame.config(width=width, height=height)
@@ -491,19 +611,19 @@ original_image = Image.open("Minecraft_Bot_img/Account.png")
 resized_image = original_image.resize((40, 40))
 account_png = ImageTk.PhotoImage(resized_image)
 
-toggle_button = Button(top_line_frame, image=account_png, command=toggle_frame, bg="#8B4513", fg="#FFFFFF")
+toggle_button = Button(top_line_frame, image=account_png, command=toggle_frame, bg="#8B4513", fg="#FFFFFF", bd=0)
 toggle_button.pack(side=LEFT, padx=0)
 
 frame_width = 200
 frame_height = 150
-account_frame = Frame(root,width=frame_width, height=frame_height, bg='#8B4513', bd=1, relief=SOLID)
+account_frame = Frame(root,width=frame_width, height=frame_height, bg='#8B4513', bd=0, relief=SOLID)
 
-email_label = Label(account_frame, text="Username:", bg='#8B4513', fg='#FFFFFF')
+email_label = Label(account_frame, text="Username:", bg='#8B4513', fg='#FFFFFF', font=('Helvetica', 8))
 email_label.grid(row=0, column=0, padx=5, pady=5)
 email_entry = Entry(account_frame)
 email_entry.grid(row=0, column=1, padx=5, pady=5)
 
-password_label = Label(account_frame, text="Password:", bg='#8B4513', fg='#FFFFFF')
+password_label = Label(account_frame, text="Password:", bg='#8B4513', fg='#FFFFFF', font=('Helvetica', 8))
 password_label.grid(row=1, column=0, padx=5, pady=5)
 password_entry = Entry(account_frame, show="*")
 password_entry.grid(row=1, column=1, padx=5, pady=5)
@@ -519,7 +639,12 @@ with open("Datas.json", 'r') as file:
 login_button = Button(account_frame, text="Authorize", command=login, bg="#8B4513", fg="#FFFFFF")
 login_button.grid(row=2, columnspan=2, pady=10)
 
-exit_button = Button(account_frame, text="Exit", command=exit, bg="#8B4513", fg="#FFFFFF")
+exit_button = Button(account_frame, text="Exit", command=ex, bg="#8B4513", fg="#FFFFFF")
+
+inventory_button = Button(account_frame, text="Inventory", command=call_inv, bg="#8B4513", fg="#FFFFFF")
+
+radar_button = Button(account_frame, text="Minimap", command=call_radar, bg="#8B4513", fg="#FFFFFF")
+
 
 account_frame.place_forget()
 
@@ -527,5 +652,62 @@ check(0)
 
 width = 0.3
 height = 0.3
+
+original_image = Image.open("Minecraft_Bot_img/Layer_buttons/Steve_Head_2layer.png")
+resized_image = original_image.resize((39, 39))
+Head_photo = ImageTk.PhotoImage(resized_image)
+Head_Button = Button(account_frame, image=Head_photo, bd=0, background="#8B4513", activebackground="#8B4513", command=head)
+
+
+original_image = Image.open("Minecraft_Bot_img/Layer_buttons/Steve_Left_Arm_2layer.png")
+resized_image = original_image.resize((20, 50))
+LeftArm_photo = ImageTk.PhotoImage(resized_image)
+LeftArm_Button = Button(account_frame, bd=0, image=LeftArm_photo, background="#8B4513", activebackground="#8B4513", command=leftArm)
+
+
+original_image = Image.open("Minecraft_Bot_img/Layer_buttons/Steve_Right_Arm_2layer.png")
+resized_image = original_image.resize((20, 50))
+Right_Arm_photo = ImageTk.PhotoImage(resized_image)
+RightArm_Button = Button(account_frame, bd=0, image=Right_Arm_photo, background="#8B4513", activebackground="#8B4513", command=rightArm)
+
+
+original_image = Image.open("Minecraft_Bot_img/Layer_buttons/Steve_Body_2layer.png")
+resized_image = original_image.resize((35, 50))
+Body_photo = ImageTk.PhotoImage(resized_image)
+Body_Button = Button(account_frame, bd=0, image=Body_photo, background="#8B4513", activebackground="#8B4513", command=body)
+
+original_image = Image.open("Minecraft_Bot_img/Layer_buttons/Steve_Left_Leg_2layer.png")
+resized_image = original_image.resize((18, 50))
+Left_Leg_photo = ImageTk.PhotoImage(resized_image)
+LeftLeg_Button = Button(account_frame, bd=0, image=Left_Leg_photo, background="#8B4513", activebackground="#8B4513", command=leftLeg)
+
+original_image = Image.open("Minecraft_Bot_img/Layer_buttons/Steve_Right_Leg_2layer.png")
+resized_image = original_image.resize((18, 50))
+Right_Leg_photo = ImageTk.PhotoImage(resized_image)
+RightLeg_Button = Button(account_frame, bd=0, image=Right_Leg_photo, background="#8B4513", activebackground="#8B4513", command=rightLeg)
+
+original_image = Image.open("Minecraft_Bot_img/Layer_buttons/Steve_Head.png")
+resized_image = original_image.resize((39, 39))
+head_photo = ImageTk.PhotoImage(resized_image)
+
+original_image = Image.open("Minecraft_Bot_img/Layer_buttons/Steve_Body.png")
+resized_image = original_image.resize((35, 50))
+body_photo = ImageTk.PhotoImage(resized_image)
+
+original_image = Image.open("Minecraft_Bot_img/Layer_buttons/Steve_Right_Arm.png")
+resized_image = original_image.resize((20, 50))
+right_arm_photo = ImageTk.PhotoImage(resized_image)
+
+original_image = Image.open("Minecraft_Bot_img/Layer_buttons/Steve_Left_Arm.png")
+resized_image = original_image.resize((20, 50))
+left_arm_photo = ImageTk.PhotoImage(resized_image)
+
+original_image = Image.open("Minecraft_Bot_img/Layer_buttons/Steve_Right_Leg.png")
+resized_image = original_image.resize((18, 50))
+right_leg_photo = ImageTk.PhotoImage(resized_image)
+
+original_image = Image.open("Minecraft_Bot_img/Layer_buttons/Steve_Left_Leg.png")
+resized_image = original_image.resize((18, 50))
+left_leg_photo = ImageTk.PhotoImage(resized_image)
 
 root.mainloop()
