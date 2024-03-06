@@ -11,6 +11,7 @@ import threading
 mineflayer = require('mineflayer')
 pathfinder = require('mineflayer-pathfinder')
 inventoryViewer = require('mineflayer-web-inventory')
+radarGenrator = require('mineflayer-radar')(mineflayer)
 goalfollow = pathfinder.goals.GoalFollow
 
 
@@ -135,6 +136,8 @@ def head():
     else:
         bot.settings.skinParts.showHat = True
         Head_Button.config(image=Head_photo)
+    bot.setSettings(bot.settings.skinParts)
+
 
 
 b_clicked = False
@@ -147,6 +150,8 @@ def body():
     else:
         bot.settings.skinParts.showJacket = True
         Body_Button.config(image=Body_photo)
+    bot.setSettings(bot.settings.skinParts)
+
 
 
 ra_clicked = False
@@ -159,6 +164,8 @@ def rightArm():
     else:
         bot.settings.skinParts.showLeftSleeve = True
         RightArm_Button.config(image=Right_Arm_photo)
+    bot.setSettings(bot.settings.skinParts)
+
 
 
 la_clicked = False
@@ -171,6 +178,8 @@ def leftArm():
     else:
         bot.settings.skinParts.showRightSleeve = True
         LeftArm_Button.config(image=LeftArm_photo)
+    bot.setSettings(bot.settings.skinParts)
+
 
 rl_clicked = False
 def rightLeg():
@@ -182,6 +191,7 @@ def rightLeg():
     else:
         bot.settings.skinParts.showLeftPants = True
         RightLeg_Button.config(image=Right_Leg_photo)
+    bot.setSettings(bot.settings.skinParts)
 
 
 ll_clicked = False
@@ -194,6 +204,8 @@ def leftLeg():
     else:
         bot.settings.skinParts.showRightPants = True
         LeftLeg_Button.config(image=Left_Leg_photo)
+    bot.setSettings(bot.settings.skinParts)
+
 
 def mining_menu():
     pass
@@ -327,6 +339,8 @@ def update_progress(i):
             bot.settings.skinParts.showRightSleeve = True
             bot.settings.skinParts.showLeftPants = True
             bot.settings.skinParts.showRightPant = True
+            bot.setSettings(bot.settings.skinParts)
+
 
             @On(bot, "playerJoined")
             def tab_update(first, seconde):
@@ -344,7 +358,8 @@ def update_progress(i):
                 options[2] = players
                 players_scrol.items = options[2]
                 players_scrol.update_menu_items()
-            
+
+
             @On(bot, "death")
             def dy(event):
                 Stop_pvp()
@@ -514,7 +529,12 @@ def call_inv():
     subprocess.Popen(["python", "-c", "import webview; webview.create_window('Inventory', 'http://localhost:3000/'); webview.start()"])
 
 def call_radar():
-    subprocess.Popen(["python", "-c", "import webview; webview.create_window('Radar', 'https://www.youtube.com/'); webview.start()"])
+    options = {
+        'host': 'localhost',
+        'port': 3001
+    }
+    radarGenrator(bot, options)
+    subprocess.Popen(["python", "-c", "import webview; webview.create_window('Radar', 'http://localhost:3001/'); webview.start()"])
 
 def toggle_frame():
     if account_frame.winfo_ismapped():
