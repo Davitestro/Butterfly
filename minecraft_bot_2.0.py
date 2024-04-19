@@ -75,23 +75,32 @@ def defend():
 
     enemys = []
     d_f_p = False
-    d_f_e = False
-
+    duel = False
     print("Start Defending")
 
-
-    @On(bot, 'entityHurt')
+    @On(bot, 'entitySwingArm')
     def check_damage(entity, why):
-        @On(bot, "entitySwingArm")
+        @On(bot, "entityHurt")
         def check_swing(eliban, enemy):
             try:
                 if why.username == choices['Player'] and not enemy.id in enemys:
                     enemys.append(enemy.id)
+                    print("Added")
             except:
                 pass
             return 0
         return 0
 
+    @On(bot, "entityDead")
+    def merav(eliban, deaded):
+        global duel
+        print(deaded)
+        try:
+            if deaded.id in enemys:
+                enemys.insert(deaded.id)
+                duel = False
+        except:
+            pass
 
     while True:
         if len(enemys) == 0:
@@ -111,33 +120,36 @@ def defend():
                     bot.pathfinder.setGoal(goal, False)
                 d_f_p = False
         else:
-            target = enemys[0]
-            @On(bot, "entityDead")
-            def merav(eliban, deaded):
-                if deaded.id == target:
-                    enemys.insert(enemys.index(target))
-                    return 0
-            target_pos = bot.entities[target].position
-            botPos = bot.entity.position
-            dist = math.sqrt((target_pos.x - botPos.x) ** 2 + (target_pos.y - botPos.y) ** 2 + (target_pos.z - botPos.z) ** 2)
+            try:
+                print("Target entity")
+                botPos = bot.entity.position
+                target_pos = bot.entities[enemys[0]].position
+                dist = math.sqrt((target_pos.x - botPos.x) ** 2 + (target_pos.y - botPos.y) ** 2 + (target_pos.z - botPos.z) ** 2)
 
-            if dist < 3 and not d_f_e:
-                bot.attack(current_target)
-                d_f_e = True
+
+                if dist < 3:
+                    bot.attack(bot.entities[enemys[0]])
+                
+                if not duel:
+                    goal = goalfollow(bot.entities[enemys[0]], 1)
+                    bot.pathfinder.setGoal(goal, True)
+                    duel = True
+            except:
+                continue
+
+                
             
-            elif dist > 3 and d_f_e:
-                d_f_e =  False
-        
-        if stop_duel[0]:
-                stop_pvp.place_forget()
-                start_pvp.place(x=325,y=148)
-                stop_duel[0] = False
+            if stop_duel[0]:
+                    stop_pvp.place_forget()
+                    start_pvp.place(x=325,y=148)
+                    stop_duel[0] = False
 
-                with open("Datas.json", 'r') as file:
-                    current_target = bot.players[json.load(file)["email"]].entity
-                    goal = goalfollow(current_target, 0)
-                    bot.pathfinder.setGoal(goal, False)
-                    break
+                    with open("Datas.json", 'r') as file:
+                        current_target = bot.players[json.load(file)["email"]].entity
+                        goal = goalfollow(current_target, 0)
+                        bot.pathfinder.setGoal(goal, False)
+                        break
+
 
 
 
