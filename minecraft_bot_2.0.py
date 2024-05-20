@@ -73,9 +73,9 @@ def defend():
     bot.pathfinder.setMovements(movements)
     current_target = bot.players[choices['Player']].entity
 
-    enemys = []
+    enemys = set()
     d_f_p = False
-    duel = False
+    duel = [False]
     print("Start Defending")
 
     @On(bot, 'entitySwingArm')
@@ -83,27 +83,30 @@ def defend():
         @On(bot, "entityHurt")
         def check_swing(eliban, enemy):
             try:
-                if why.username == choices['Player'] and not enemy.id in enemys:
-                    enemys.append(enemy.id)
-                    print("Added")
+                if why.username == choices['Player']:
+                    enemys.add(enemy.id)
+                    print(enemys)
+                    duel[0] = False
+                elif enemy.username == choices['Player']:
+                    enemys.add(why.id)
+                    duel[0] = False
             except:
-                pass
+                print("BAG")
             return 0
         return 0
 
     @On(bot, "entityDead")
-    def merav(eliban, deaded):
-        global duel
-        print(deaded)
-        try:
-            if deaded.id in enemys:
-                enemys.insert(deaded.id)
-                duel = False
-        except:
-            pass
+    def merav(deaded, ban):
+        if ban.id == list(enemys)[0]:
+            enemys.remove(list(enemys)[0])
+            duel[0] = False
+
+        return None
+
 
     while True:
         if len(enemys) == 0:
+            bot.chat("I deafend my lord")
             current_target = bot.players[choices['Player']].entity
             playerPos = current_target.position
             botPos = bot.entity.position
@@ -121,34 +124,34 @@ def defend():
                 d_f_p = False
         else:
             try:
-                print("Target entity")
                 botPos = bot.entity.position
-                target_pos = bot.entities[enemys[0]].position
+                target_pos = bot.entities[list(enemys)[0]].position
                 dist = math.sqrt((target_pos.x - botPos.x) ** 2 + (target_pos.y - botPos.y) ** 2 + (target_pos.z - botPos.z) ** 2)
 
 
                 if dist < 3:
-                    bot.attack(bot.entities[enemys[0]])
+                    bot.attack(bot.entities[list(enemys)[0]])
                 
-                if not duel:
-                    goal = goalfollow(bot.entities[enemys[0]], 1)
+                if not duel[0]:
+                    goal = goalfollow(bot.entities[list(enemys)[0]], 1)
                     bot.pathfinder.setGoal(goal, True)
-                    duel = True
+                    duel[0] = True
             except:
+                print(len(enemys))
                 continue
 
                 
             
-            if stop_duel[0]:
-                    stop_pvp.place_forget()
-                    start_pvp.place(x=325,y=148)
-                    stop_duel[0] = False
+        if stop_duel[0]:
+            stop_pvp.place_forget()
+            start_pvp.place(x=325,y=148)
+            stop_duel[0] = False
 
-                    with open("Datas.json", 'r') as file:
-                        current_target = bot.players[json.load(file)["email"]].entity
-                        goal = goalfollow(current_target, 0)
-                        bot.pathfinder.setGoal(goal, False)
-                        break
+            with open("Datas.json", 'r') as file:
+                current_target = bot.players[json.load(file)["email"]].entity
+                goal = goalfollow(current_target, 0)
+                bot.pathfinder.setGoal(goal, False)
+                break
 
 
 
@@ -221,7 +224,17 @@ def pvp_menu():
     mod_scrol.button.place(x=288, y = 225)
     players_scrol.button.place(x=288,y=100)
     start_pvp.place(x=325, y=148)
+    back_button.place(x=10, y=45)
     menu("Forgot")
+
+def pvp_menu_forget():
+    mod_scrol.button.place_forget()
+    players_scrol.button.place_forget()
+    start_pvp.place_forget()
+    back_button.place_forget()
+    Stop_pvp()
+    stop_pvp.place_forget()
+    menu("Place")
 
 h_clicked = False
 def head():
@@ -743,6 +756,21 @@ if __name__ == '__main__':
 
     stop_pvp = Button(root, image=stop_photo, bd=0,command=Stop_pvp, bg='green', fg='green', activebackground='green')
     stop_pvp.image = stop_photo
+
+    original_image = Image.open("Minecraft_Bot_img/Back.jpg")
+    resized_image = original_image.resize((50, 50))
+
+    bg_image = Image.new('RGBA', (50, 50), color='green')
+    bg_photo = ImageTk.PhotoImage(bg_image)
+
+    combined_image = Image.alpha_composite(bg_image, resized_image)
+    combined_photo = ImageTk.PhotoImage(combined_image)
+
+    back_photo = ImageTk.PhotoImage(combined_image)
+    
+    back_button = Button(root, image = back_photo, bd=0, command=pvp_menu_forget, bg='green', fg='green', activebackground='green')
+
+    back_button.image = back_photo
 
     mod_scrol = CustomMenuButton(root, has_search_box=False, items=[], key='Mod', text='Choose mod')
 
