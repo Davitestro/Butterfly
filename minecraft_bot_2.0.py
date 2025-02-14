@@ -12,36 +12,16 @@ mineflayer = require('mineflayer')
 pathfinder = require('mineflayer-pathfinder')
 inventoryViewer = require('mineflayer-web-inventory')
 radarGenrator = require('mineflayer-radar')(mineflayer)
+auto_eat = require('mineflayer-auto-eat').plugin
+armorManager = require("mineflayer-armor-manager")
+pvp = require('mineflayer-pvp').plugin
 goalfollow = pathfinder.goals.GoalFollow
 
 
 
 def Hunting():
-    global bot
-    mcData = require('minecraft-data')(bot.version)
-    movements = pathfinder.Movements(bot, mcData)
-    bot.pathfinder.setMovements(movements)
-    current_target = None
-    print("Start Hunting")
-    current_target = bot.players[choices['Player']].entity
-    goal = goalfollow(current_target, 1)
-    bot.pathfinder.setGoal(goal, True)
-    while True:
-        playerPos = current_target.position
-        botPos = bot.entity.position
-        dist = math.sqrt((playerPos.x - botPos.x) ** 2 + (playerPos.y - botPos.y) ** 2 + (playerPos.z - botPos.z) ** 2)
-        if dist < 3:
-            bot.attack(current_target)
+    bot.pvp.attack(bot.players[choices['Player']].entity)
 
-        if stop_duel[0]:
-            stop_pvp.place_forget()
-            start_pvp.place(x=325,y=148)
-            stop_duel[0] = False
-            with open("Datas.json", 'r') as file:
-                current_target = bot.players[json.load(file)["email"]].entity
-                goal = goalfollow(current_target, 0)
-                bot.pathfinder.setGoal(goal, False)
-                break
 
 
 def Folow():
@@ -64,6 +44,7 @@ def Folow():
                 goal = goalfollow(current_target, 0)
                 bot.pathfinder.setGoal(goal, False)
                 break
+    return 0
 
 
 def defend():
@@ -106,7 +87,6 @@ def defend():
 
     while True:
         if len(enemys) == 0:
-            bot.chat("I deafend my lord")
             current_target = bot.players[choices['Player']].entity
             playerPos = current_target.position
             botPos = bot.entity.position
@@ -139,8 +119,6 @@ def defend():
             except:
                 print(len(enemys))
                 continue
-
-                
             
         if stop_duel[0]:
             stop_pvp.place_forget()
@@ -152,8 +130,7 @@ def defend():
                 goal = goalfollow(current_target, 0)
                 bot.pathfinder.setGoal(goal, False)
                 break
-
-
+        return 0
 
 
 
@@ -186,6 +163,10 @@ stop_duel = [False]
 
 def Stop_pvp():
     stop_duel[0] = True
+    stop_pvp.place_forget()
+    start_pvp.place(x=325,y=148)
+    bot.pvp.stop()
+
 
 
 def data_cleaning(data):
@@ -215,7 +196,7 @@ def on_click_frame(event):
 
 def pvp_menu():
     players = data_cleaning(str(bot.players))
-    players.remove("DAI_BOT")
+    players.remove(bot.username)
     options[2] = players
     players_scrol.items = options[2]
     players_scrol.update_menu_items()
@@ -415,7 +396,7 @@ def update_progress(i):
             bot = None
         else:
             players = data_cleaning(str(bot.players))
-            players.remove("DAI_BOT")
+            players.remove(bot.username)
             options.append(players)
             menu("Place")
             global height
@@ -455,7 +436,7 @@ def update_progress(i):
             @On(bot, "playerJoined")
             def tap_update(first, seconde):
                 players = data_cleaning(str(bot.players))
-                players.remove("DAI_BOT")
+                players.remove(bot.username)
                 options[2] = players
                 players_scrol.items = options[2]
                 players_scrol.update_menu_items()
@@ -464,7 +445,7 @@ def update_progress(i):
             @On(bot, "playerLeft")
             def tab_update(first, seconde):
                 players = data_cleaning(str(bot.players))
-                players.remove("DAI_BOT")
+                players.remove(bot.username)
                 options[2] = players
                 players_scrol.items = options[2]
                 players_scrol.update_menu_items()
@@ -475,6 +456,22 @@ def update_progress(i):
                 Stop_pvp()
                 bot.chat(f"I killed at x {str(bot.entity.position.x)} y {str(bot.entity.position.y)} z {str(bot.entity.position.z)}")
                 bot.respawn()
+            
+            @On(bot, "stoppedAttacking")
+            def killed(event):
+                Stop_pvp()
+
+            bot.loadPlugin(auto_eat)
+            bot.autoEat.options.priority = 'auto'
+            bot.autoEat.options.startAt = 14
+            bot.autoEat.options.bannedFood.push('rotten_flesh')
+            bot.autoEat.options.bannedFood.push('spider_eye')
+            bot.autoEat
+
+            bot.loadPlugin(armorManager)
+            bot.armorManager.equipAll()
+
+            bot.loadPlugin(pvp)
 
 
         progressbar.place_forget()
