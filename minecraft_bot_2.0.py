@@ -169,6 +169,11 @@ def Stop_pvp():
 
 
 
+def Mining():
+    pass
+
+
+
 def data_cleaning(data):
     cleaned_data = data.replace('\n', ' ').replace('\u001b[94m', '').replace('\u001b[39m', '').replace('\u001b[32m', '').replace('\u001b[33m', '').replace('\u001b[90m', '').replace('\u001b[95m', '').replace('\u001b[34m', '')
     bar = ''
@@ -299,7 +304,8 @@ def leftLeg():
 
 
 def mining_menu():
-    pass
+    menu("Forgot")
+    
 
 
 def menu(command):
