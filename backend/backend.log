@@ -1,0 +1,78 @@
+
+> minecraft-bot-backend@1.0.0 start
+> node server.js
+
+Loaded 1 bots
+Backend server running on port 3000
+WebSocket client connected
+Received: get_bots
+Received: start_bot
+Starting bot: TestBot
+Bots saved
+Error: connect ECONNREFUSED 127.0.0.1:25565
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1637:16) {
+  errno: -111,
+  code: 'ECONNREFUSED',
+  syscall: 'connect',
+  address: '127.0.0.1',
+  port: 25565
+}
+Bot TestBot error: connect ECONNREFUSED 127.0.0.1:25565
+Bots saved
+Bot TestBot disconnected
+Bots saved
+Error: connect ECONNREFUSED 127.0.0.1:25565
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1637:16) {
+  errno: -111,
+  code: 'ECONNREFUSED',
+  syscall: 'connect',
+  address: '127.0.0.1',
+  port: 25565
+}
+Bot TestBot error: connect ECONNREFUSED 127.0.0.1:25565
+Bots saved
+Received: add_bot
+Bots saved
+Received: start_bot
+Starting bot: bot 2
+Bots saved
+Error: getaddrinfo ENOTFOUND plav
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26) {
+  errno: -3008,
+  code: 'ENOTFOUND',
+  syscall: 'getaddrinfo',
+  hostname: 'plav'
+}
+Bot bot 2 error: getaddrinfo ENOTFOUND plav
+Bots saved
+Received: stop_bot
+Sign in failed, try removing the password field
+
+XRFetchClientException: Bad Request
+    at XRFetchClientException.fromResponse (/home/testro/opt/Minecraft_Bot/backend/node_modules/@xboxreplay/xboxlive-auth/dist/shared/classes/Fetch/Exceptions/XRFetchClientException.js:43:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async FetchClient.fetch (/home/testro/opt/Minecraft_Bot/backend/node_modules/@xboxreplay/xboxlive-auth/dist/shared/classes/Fetch/index.js:116:23)
+    at async Object.authenticate [as authenticateWithCredentials] (/home/testro/opt/Minecraft_Bot/backend/node_modules/@xboxreplay/xboxlive-auth/dist/shared/libs/live/modules/requests/index.js:155:18)
+    at async XboxTokenManager.doReplayAuth (/home/testro/opt/Minecraft_Bot/backend/node_modules/prismarine-auth/src/TokenManagers/XboxTokenManager.js:122:31)
+    at async MicrosoftAuthFlow.getXboxToken (/home/testro/opt/Minecraft_Bot/backend/node_modules/prismarine-auth/src/MicrosoftAuthFlow.js:152:20)
+    at async retry.xbl.forceRefresh (/home/testro/opt/Minecraft_Bot/backend/node_modules/prismarine-auth/src/MicrosoftAuthFlow.js:187:22)
+    at async retry (/home/testro/opt/Minecraft_Bot/backend/node_modules/prismarine-auth/src/MicrosoftAuthFlow.js:26:14)
+    at async MicrosoftAuthFlow.getMinecraftJavaToken (/home/testro/opt/Minecraft_Bot/backend/node_modules/prismarine-auth/src/MicrosoftAuthFlow.js:186:7)
+    at async Object.authenticate (/home/testro/opt/Minecraft_Bot/backend/node_modules/minecraft-protocol/src/client/microsoftAuth.js:22:58) {
+  data: { attributes: { code: 'REQUEST_ERROR', extra: [Object] } }
+}
+Bot bot 2 error: Bad Request
+Bots saved
+Received: stop_bot
+Received: stop_bot
+Bots saved
+Received: stop_bot
+Received: stop_bot
+Received: stop_bot
+Received: stop_bot
+Received: stop_bot
+Received: stop_bot
+Received: stop_bot
+Received: delete_bot
+Bots saved
+WebSocket client disconnected

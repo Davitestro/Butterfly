@@ -1,0 +1,22 @@
+FROM ubuntu:22.04
+
+RUN apt-get update && apt-get install -y \
+    qt6-base-dev \
+    qt6-tools-dev \
+    libqt6core5compat6-dev \
+    libcurl4-openssl-dev \
+    libqt6websockets6-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY frontend/build/MinecraftBotManager /app/
+COPY frontend/build/*.so* /app/ 2>/dev/null || true
+
+# Создаем скрипт запуска
+RUN echo '#!/bin/bash\n\
+export DISPLAY=$DISPLAY\n\
+export QT_X11_NO_MITSHM=1\n\
+export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH\n\
+exec /app/MinecraftBotManager' > /app/run.sh && chmod +x /app/run.sh
+
+CMD ["/app/run.sh"]
