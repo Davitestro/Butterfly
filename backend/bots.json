@@ -1,11 +1,13 @@
 [
   {
-    "id": "1782320739651",
-    "name": "bot 2",
-    "server": "plav",
-    "port": 25565,
-    "username": "haris",
-    "password": "7355608 dech sakl",
-    "status": "stopped"
+    "id": "1782456116296",
+    "name": "bot",
+    "server": "Test-SivL.aternos.me",
+    "port": 39221,
+    "username": "davit",
+    "password": "",
+    "status": "connecting",
+    "createdAt": "2026-06-26T06:41:56.296Z",
+    "lastModified": "2026-06-26T06:41:56.296Z"
   }
 ]
