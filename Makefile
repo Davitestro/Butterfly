@@ -48,16 +48,28 @@ run:
 	@echo "📊 Application is running!"
 	@echo "========================================"
 	@echo ""
+	@echo "To stop: make stop"
+	@echo "To view logs: make logs"
+	@echo ""
 	@echo "Showing backend logs (Ctrl+C to stop viewing):"
 	@echo ""
 	@tail -f backend/backend.log
 
 stop:
-	@echo "Stopping all processes..."
-	@pkill -f "node server.js" || true
-	@pkill -f MinecraftBotManager || true
+	@echo "========================================"
+	@echo "🛑 Stopping Minecraft Bot Manager"
+	@echo "========================================"
+	@echo ""
+	@echo "Stopping frontend..."
+	@pkill -f MinecraftBotManager 2>/dev/null || true
+	@echo "Stopping backend..."
+	@pkill -f "node server.js" 2>/dev/null || true
+	@echo "Freeing port 3000..."
 	@sudo fuser -k 3000/tcp 2>/dev/null || true
-	@echo "All processes stopped"
+	@sleep 1
+	@echo ""
+	@echo "✅ All processes stopped"
+	@echo "========================================"
 
 status:
 	@echo "Checking running processes..."
@@ -69,10 +81,10 @@ status:
 	@ps aux | grep MinecraftBotManager | grep -v grep || echo "  ❌ Not running"
 	@echo ""
 	@echo "Port 3000:"
-	@sudo lsof -i :3000 || echo "  Port 3000 is free"
+	@sudo lsof -i :3000 2>/dev/null || echo "  Port 3000 is free"
 	@echo ""
 	@echo "Saved bots:"
-	@if [ -f backend/bots.json ]; then cat backend/bots.json | grep -c '"id"' || echo "  0 bots"; else echo "  No bots file"; fi
+	@if [ -f backend/bots.json ]; then echo "  ✅ bots.json exists"; cat backend/bots.json | grep -c '"id"' | xargs echo "  Bots count:"; else echo "  No bots file"; fi
 
 logs:
 	@echo "Showing backend logs (Ctrl+C to exit):"

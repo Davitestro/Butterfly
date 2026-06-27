@@ -15,7 +15,6 @@ class WebSocketHandler {
             this.clients.add(ws);
             this.botManager.addWsClient(ws);
 
-            // Send initial bot list - get bots from botManager
             try {
                 const bots = this.botManager.getBots();
                 console.log(`Sending ${bots.length} bots to client`);
@@ -67,7 +66,6 @@ class WebSocketHandler {
                         type: 'bot_info',
                         data: newBot
                     }));
-                    // Broadcast updated list to all clients
                     this.broadcastBots(this.botManager.getBots());
                     break;
 
@@ -133,6 +131,15 @@ class WebSocketHandler {
                                 }));
                             }
                         }
+
+                        // Send tasks
+                        const taskData = this.botManager.botTasks && this.botManager.botTasks[data.id];
+                        if (taskData) {
+                            ws.send(JSON.stringify({
+                                type: 'bot_tasks',
+                                data: taskData.tasks || []
+                            }));
+                        }
                     }
                     break;
 
@@ -171,6 +178,16 @@ class WebSocketHandler {
                             type: 'bot_command_response',
                             command: data.command,
                             response: `Command sent: ${data.command}`
+                        }));
+                    }
+                    break;
+
+                case 'get_tasks':
+                    const taskData2 = this.botManager.botTasks && this.botManager.botTasks[data.id];
+                    if (taskData2) {
+                        ws.send(JSON.stringify({
+                            type: 'bot_tasks',
+                            data: taskData2.tasks || []
                         }));
                     }
                     break;

@@ -83,24 +83,59 @@ app.post('/api/bots/:id/stop', (req, res) => {
     res.json({ success: true });
 });
 
+// Graceful shutdown
+function gracefulShutdown() {
+    console.log('\n🛑 Shutting down gracefully...');
+    
+    // Stop all bots
+    console.log('Stopping all bots...');
+    botManager.cleanup();
+    
+    // Close WebSocket connections
+    if (wsHandler) {
+        console.log('Closing WebSocket connections...');
+        wsHandler.clients.forEach(client => {
+            try {
+                client.close();
+            } catch (e) {}
+        });
+    }
+    
+    // Close HTTP server
+    console.log('Closing HTTP server...');
+    server.close(() => {
+        console.log('✅ Server closed successfully');
+        process.exit(0);
+    });
+    
+    // Force exit after 5 seconds if graceful shutdown fails
+    setTimeout(() => {
+        console.log('Force exiting...');
+        process.exit(0);
+    }, 5000);
+}
+
+// Handle shutdown signals
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGQUIT', gracefulShutdown);
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err);
+    gracefulShutdown();
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 server.listen(PORT, () => {
     console.log(`========================================`);
-    console.log(`🚀 Minecraft Bot Manager Backend`);
-    console.log(`📡 Server running on port ${PORT}`);
-    console.log(`📊 WebSocket: ws://localhost:${PORT}`);
-    console.log(`🌐 REST API: http://localhost:${PORT}/api`);
+    console.log(`Minecraft Bot Manager Backend`);
+    console.log(`Server running on port ${PORT}`);
+    console.log(`WebSocket: ws://localhost:${PORT}`);
+    console.log(`REST API: http://localhost:${PORT}/api`);
     console.log(`========================================`);
-    console.log(`🤖 Loaded ${botManager.getBots().length} bots from file`);
-});
-
-process.on('SIGINT', () => {
-    console.log('\nShutting down...');
-    botManager.cleanup();
-    process.exit();
-});
-
-process.on('SIGTERM', () => {
-    console.log('\nShutting down...');
-    botManager.cleanup();
-    process.exit();
+    console.log(`Loaded ${botManager.getBots().length} bots from file`);
 });

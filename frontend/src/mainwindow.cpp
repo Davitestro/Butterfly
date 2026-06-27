@@ -23,6 +23,8 @@
 #include <QInputDialog>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QComboBox>
+#include <QCheckBox>
 
 class BotDialog : public QDialog {
 public:
@@ -33,31 +35,25 @@ public:
         QVBoxLayout* mainLayout = new QVBoxLayout(this);
         QFormLayout* form = new QFormLayout();
         
-        // Bot Name
         nameEdit = new QLineEdit(this);
         form->addRow("Bot Name:", nameEdit);
         
-        // Server
         serverEdit = new QLineEdit(this);
         form->addRow("Server:", serverEdit);
         
-        // Port
         portSpin = new QSpinBox(this);
         portSpin->setRange(1, 65535);
         portSpin->setValue(25565);
         form->addRow("Port:", portSpin);
         
-        // Username
         usernameEdit = new QLineEdit(this);
         form->addRow("Username:", usernameEdit);
         
-        // Password
         passwordEdit = new QLineEdit(this);
         passwordEdit->setEchoMode(QLineEdit::Password);
         passwordEdit->setPlaceholderText("Leave empty for offline mode");
         form->addRow("Password:", passwordEdit);
         
-        // Show created/last modified info if editing
         if (existing) {
             infoLabel = new QLabel(this);
             infoLabel->setStyleSheet("color: gray; font-size: 10px;");
@@ -130,7 +126,7 @@ MainWindow::~MainWindow()
 
 void MainWindow::setupUI() {
     setWindowTitle("Minecraft Bot Manager");
-    resize(1200, 700);
+    resize(1300, 750);
     
     QWidget* central = new QWidget(this);
     setCentralWidget(central);
@@ -174,10 +170,11 @@ void MainWindow::setupUI() {
     leftLayout->addStretch();
     mainLayout->addWidget(leftPanel);
     
-    // === CENTER PANEL - Bot Info & Controls ===
+    // === CENTER PANEL ===
     QWidget* centerPanel = new QWidget(this);
     QVBoxLayout* centerLayout = new QVBoxLayout(centerPanel);
     
+    // Bot info header
     QFrame* headerFrame = new QFrame(this);
     headerFrame->setFrameStyle(QFrame::StyledPanel);
     QHBoxLayout* headerLayout = new QHBoxLayout(headerFrame);
@@ -198,6 +195,20 @@ void MainWindow::setupUI() {
     
     centerLayout->addWidget(headerFrame);
     
+    // Task progress bar
+    QHBoxLayout* taskLayout = new QHBoxLayout();
+    taskStatusLabel = new QLabel("No active task", this);
+    taskStatusLabel->setStyleSheet("font-size: 12px; color: gray;");
+    taskLayout->addWidget(taskStatusLabel);
+    taskProgressBar = new QProgressBar(this);
+    taskProgressBar->setRange(0, 100);
+    taskProgressBar->setValue(0);
+    taskProgressBar->setFixedWidth(200);
+    taskLayout->addWidget(taskProgressBar);
+    taskLayout->addStretch();
+    centerLayout->addLayout(taskLayout);
+    
+    // Tabs
     centralTabs = new QTabWidget(this);
     
     // === Tab 1: Bot Info ===
@@ -261,40 +272,108 @@ void MainWindow::setupUI() {
     
     centralTabs->addTab(inventoryWidget, "🎒 Inventory");
     
-    // === Tab 3: Commands ===
+    // === Tab 3: Tasks ===
+    tasksWidget = new QWidget(this);
+    QVBoxLayout* tasksLayout = new QVBoxLayout(tasksWidget);
+    
+    tasksTable = new QTableWidget(this);
+    tasksTable->setColumnCount(4);
+    tasksTable->setHorizontalHeaderLabels({"Task", "Status", "Progress", "Time"});
+    tasksTable->horizontalHeader()->setStretchLastSection(true);
+    tasksTable->setAlternatingRowColors(true);
+    tasksLayout->addWidget(tasksTable);
+    
+    refreshTasksButton = new QPushButton("🔄 Refresh Tasks", this);
+    connect(refreshTasksButton, &QPushButton::clicked, this, &MainWindow::onRefreshTasks);
+    tasksLayout->addWidget(refreshTasksButton);
+    
+    centralTabs->addTab(tasksWidget, "📋 Tasks");
+    
+    // === Tab 4: Commands ===
     commandsWidget = new QWidget(this);
     QVBoxLayout* cmdLayout = new QVBoxLayout(commandsWidget);
     
+    // Command output
     commandOutput = new QTextEdit(this);
     commandOutput->setReadOnly(true);
     commandOutput->setFont(QFont("Monospace", 10));
-    commandOutput->setMinimumHeight(200);
+    commandOutput->setMinimumHeight(150);
     cmdLayout->addWidget(commandOutput);
     
-    QGridLayout* quickCmdLayout = new QGridLayout();
+    // Command grid
+    QGridLayout* cmdGrid = new QGridLayout();
     
-    moveToButton = new QPushButton("🎯 Move To", this);
-    guardButton = new QPushButton("🛡️ Guard Area", this);
-    collectButton = new QPushButton("⛏️ Collect Resources", this);
-    dropButton = new QPushButton("🗑️ Drop Item", this);
-    huntAnimalsButton = new QPushButton("🐄 Hunt Animals", this);
-    huntPlayersButton = new QPushButton("⚔️ Hunt Players", this);
-    
+    // Row 1: Move To
+    cmdGrid->addWidget(new QLabel("Move To:", this), 0, 0);
+    moveToButton = new QPushButton("🎯 Move", this);
     connect(moveToButton, &QPushButton::clicked, this, &MainWindow::onMoveTo);
+    cmdGrid->addWidget(moveToButton, 0, 1);
+    
+    // Row 2: Follow Player
+    cmdGrid->addWidget(new QLabel("Follow:", this), 1, 0);
+    followInput = new QLineEdit(this);
+    followInput->setPlaceholderText("Player name");
+    cmdGrid->addWidget(followInput, 1, 1);
+    followButton = new QPushButton("👤 Follow", this);
+    connect(followButton, &QPushButton::clicked, this, &MainWindow::onFollowPlayer);
+    cmdGrid->addWidget(followButton, 1, 2);
+    
+    // Row 3: Guard
+    cmdGrid->addWidget(new QLabel("Guard:", this), 2, 0);
+    guardInput = new QLineEdit(this);
+    guardInput->setPlaceholderText("Radius");
+    guardInput->setText("10");
+    cmdGrid->addWidget(guardInput, 2, 1);
+    guardButton = new QPushButton("🛡️ Guard", this);
     connect(guardButton, &QPushButton::clicked, this, &MainWindow::onGuardArea);
+    cmdGrid->addWidget(guardButton, 2, 2);
+    
+    // Row 4: Collect
+    cmdGrid->addWidget(new QLabel("Collect:", this), 3, 0);
+    collectInput = new QLineEdit(this);
+    collectInput->setPlaceholderText("Resource name");
+    cmdGrid->addWidget(collectInput, 3, 1);
+    collectButton = new QPushButton("⛏️ Collect", this);
     connect(collectButton, &QPushButton::clicked, this, &MainWindow::onCollectResources);
+    cmdGrid->addWidget(collectButton, 3, 2);
+    
+    // Row 5: Drop
+    cmdGrid->addWidget(new QLabel("Drop:", this), 4, 0);
+    dropInput = new QLineEdit(this);
+    dropInput->setPlaceholderText("Item [count]");
+    cmdGrid->addWidget(dropInput, 4, 1);
+    dropButton = new QPushButton("🗑️ Drop", this);
     connect(dropButton, &QPushButton::clicked, this, &MainWindow::onDropItem);
+    cmdGrid->addWidget(dropButton, 4, 2);
+    
+    // Row 6: Hunt Animals
+    cmdGrid->addWidget(new QLabel("Hunt:", this), 5, 0);
+    huntInput = new QLineEdit(this);
+    huntInput->setPlaceholderText("Animal name");
+    cmdGrid->addWidget(huntInput, 5, 1);
+    huntAnimalsButton = new QPushButton("🐄 Hunt", this);
     connect(huntAnimalsButton, &QPushButton::clicked, this, &MainWindow::onHuntAnimals);
+    cmdGrid->addWidget(huntAnimalsButton, 5, 2);
+    
+    // Row 7: Hunt Players
+    cmdGrid->addWidget(new QLabel("Hunt Player:", this), 6, 0);
+    huntPlayerInput = new QLineEdit(this);
+    huntPlayerInput->setPlaceholderText("Player name (optional)");
+    cmdGrid->addWidget(huntPlayerInput, 6, 1);
+    huntPlayersButton = new QPushButton("⚔️ Hunt", this);
     connect(huntPlayersButton, &QPushButton::clicked, this, &MainWindow::onHuntPlayers);
+    cmdGrid->addWidget(huntPlayersButton, 6, 2);
     
-    quickCmdLayout->addWidget(moveToButton, 0, 0);
-    quickCmdLayout->addWidget(guardButton, 0, 1);
-    quickCmdLayout->addWidget(collectButton, 0, 2);
-    quickCmdLayout->addWidget(dropButton, 1, 0);
-    quickCmdLayout->addWidget(huntAnimalsButton, 1, 1);
-    quickCmdLayout->addWidget(huntPlayersButton, 1, 2);
-    cmdLayout->addLayout(quickCmdLayout);
+    // Row 8: Stop Action
+    cmdGrid->addWidget(new QLabel("", this), 7, 0);
+    stopActionButton = new QPushButton("🛑 STOP ALL ACTIONS", this);
+    stopActionButton->setStyleSheet("background-color: #ff4444; color: white; font-weight: bold;");
+    connect(stopActionButton, &QPushButton::clicked, this, &MainWindow::onStopAction);
+    cmdGrid->addWidget(stopActionButton, 7, 1, 1, 2);
     
+    cmdLayout->addLayout(cmdGrid);
+    
+    // Custom command
     QHBoxLayout* customCmdLayout = new QHBoxLayout();
     commandInput = new QLineEdit(this);
     commandInput->setPlaceholderText("Type custom command...");
@@ -338,7 +417,10 @@ void MainWindow::clearBotInfo() {
     dimensionLabel->setText("Overworld");
     gamemodeLabel->setText("Survival");
     inventoryTable->setRowCount(0);
+    tasksTable->setRowCount(0);
     commandOutput->clear();
+    taskStatusLabel->setText("No active task");
+    taskProgressBar->setValue(0);
     currentBotId = "";
 }
 
@@ -365,9 +447,10 @@ void MainWindow::updateBotStats(const QJsonObject& stats) {
     int food = stats["food"].toInt(20);
     int exp = stats["experience"].toInt(0);
     int level = stats["level"].toInt(0);
-    double x = stats["position"].toObject()["x"].toDouble(0);
-    double y = stats["position"].toObject()["y"].toDouble(0);
-    double z = stats["position"].toObject()["z"].toDouble(0);
+    QJsonObject pos = stats["position"].toObject();
+    double x = pos["x"].toDouble(0);
+    double y = pos["y"].toDouble(0);
+    double z = pos["z"].toDouble(0);
     
     healthBar->setValue((int)health);
     foodBar->setValue(food);
@@ -380,6 +463,15 @@ void MainWindow::updateBotStats(const QJsonObject& stats) {
     }
     if (stats.contains("gamemode")) {
         gamemodeLabel->setText(stats["gamemode"].toString());
+    }
+    
+    // Update task progress if available
+    if (stats.contains("task")) {
+        QJsonObject task = stats["task"].toObject();
+        QString taskName = task["name"].toString();
+        int progress = task["progress"].toInt(0);
+        taskStatusLabel->setText("📋 " + taskName);
+        taskProgressBar->setValue(progress);
     }
 }
 
@@ -397,6 +489,48 @@ void MainWindow::updateInventory(const QJsonArray& inventory) {
         
         QTableWidgetItem* countItem = new QTableWidgetItem(QString::number(item["count"].toInt()));
         inventoryTable->setItem(i, 2, countItem);
+    }
+}
+
+void MainWindow::updateTasks(const QJsonArray& tasks) {
+    tasksTable->setRowCount(tasks.size());
+    
+    for (int i = 0; i < tasks.size(); ++i) {
+        QJsonObject task = tasks[i].toObject();
+        
+        QTableWidgetItem* nameItem = new QTableWidgetItem(task["name"].toString());
+        tasksTable->setItem(i, 0, nameItem);
+        
+        bool completed = task["completed"].toBool(false);
+        QTableWidgetItem* statusItem = new QTableWidgetItem(completed ? "✅ Done" : "⏳ In Progress");
+        tasksTable->setItem(i, 1, statusItem);
+        
+        int progress = task["progress"].toInt(0);
+        QTableWidgetItem* progressItem = new QTableWidgetItem(QString::number(progress) + "%");
+        tasksTable->setItem(i, 2, progressItem);
+        
+        qint64 started = task["started"].toVariant().toLongLong();
+        QString timeStr = QDateTime::fromMSecsSinceEpoch(started).toString("hh:mm:ss");
+        if (completed) {
+            qint64 completedAt = task["completedAt"].toVariant().toLongLong();
+            timeStr += " - " + QDateTime::fromMSecsSinceEpoch(completedAt).toString("hh:mm:ss");
+        }
+        QTableWidgetItem* timeItem = new QTableWidgetItem(timeStr);
+        tasksTable->setItem(i, 3, timeItem);
+    }
+}
+
+void MainWindow::updateTaskProgress(const QJsonObject& taskData) {
+    QString taskName = taskData["currentTask"].toString();
+    int progress = taskData["progress"].toInt(0);
+    int total = taskData["total"].toInt(0);
+    
+    if (!taskName.isEmpty()) {
+        taskStatusLabel->setText("📋 " + taskName);
+        taskProgressBar->setValue(progress);
+    } else {
+        taskStatusLabel->setText("No active task");
+        taskProgressBar->setValue(0);
     }
 }
 
@@ -452,6 +586,10 @@ void MainWindow::onWebSocketMessage(const QString& message) {
         updateBotStats(obj["data"].toObject());
     } else if (type == "bot_inventory") {
         updateInventory(obj["data"].toArray());
+    } else if (type == "bot_tasks") {
+        updateTasks(obj["data"].toArray());
+    } else if (type == "task_progress") {
+        updateTaskProgress(obj["data"].toObject());
     } else if (type == "bot_command_response") {
         QString command = obj["command"].toString();
         QString response = obj["response"].toString();
@@ -479,7 +617,6 @@ void MainWindow::updateBotList(const QJsonArray& botsArray) {
         bot.password = botObj["password"].toString();
         bot.status = botObj["status"].toString();
         
-        // Cache full data for editing
         botDataCache[bot.id] = botObj;
         
         QString statusIcon;
@@ -569,7 +706,6 @@ void MainWindow::onEditBot() {
     dummy.password = "";
     dummy.status = "stopped";
     
-    // Try to get cached data
     if (botDataCache.contains(botId)) {
         QJsonObject cached = botDataCache[botId];
         dummy.server = cached["server"].toString("localhost");
@@ -641,6 +777,7 @@ void MainWindow::onStopBot() {
     QJsonObject data;
     data["id"] = botId;
     sendMessage("stop_bot", data);
+    showNotification("Stopping Bot", "Bot is disconnecting...", false);
 }
 
 void MainWindow::onBotSelected(QListWidgetItem* item) {
@@ -697,15 +834,35 @@ void MainWindow::onMoveTo() {
     addCommandToOutput(QString("moveto %1 %2 %3").arg(x).arg(y).arg(z), "Moving to target position...");
 }
 
+void MainWindow::onFollowPlayer() {
+    if (currentBotId.isEmpty()) {
+        showNotification("No Bot Selected", "Please select a bot first", true);
+        return;
+    }
+    
+    QString playerName = followInput->text().trimmed();
+    if (playerName.isEmpty()) {
+        showNotification("No Player", "Please enter a player name to follow", true);
+        return;
+    }
+    
+    QJsonObject data;
+    data["id"] = currentBotId;
+    data["command"] = QString("follow %1").arg(playerName);
+    sendMessage("bot_command", data);
+    
+    addCommandToOutput(QString("follow %1").arg(playerName), "Following " + playerName + "...");
+    followInput->clear();
+}
+
 void MainWindow::onGuardArea() {
     if (currentBotId.isEmpty()) {
         showNotification("No Bot Selected", "Please select a bot first", true);
         return;
     }
     
-    bool ok;
-    int radius = QInputDialog::getInt(this, "Guard Area", "Enter guard radius (blocks):", 10, 1, 100, 1, &ok);
-    if (!ok) return;
+    int radius = guardInput->text().toInt();
+    if (radius <= 0) radius = 10;
     
     QJsonObject data;
     data["id"] = currentBotId;
@@ -721,8 +878,11 @@ void MainWindow::onCollectResources() {
         return;
     }
     
-    QString resource = QInputDialog::getText(this, "Collect Resources", "Enter resource to collect (e.g., diamond, iron, wood):");
-    if (resource.isEmpty()) return;
+    QString resource = collectInput->text().trimmed();
+    if (resource.isEmpty()) {
+        showNotification("No Resource", "Please enter a resource to collect", true);
+        return;
+    }
     
     QJsonObject data;
     data["id"] = currentBotId;
@@ -730,6 +890,7 @@ void MainWindow::onCollectResources() {
     sendMessage("bot_command", data);
     
     addCommandToOutput(QString("collect %1").arg(resource), "Searching for " + resource + "...");
+    collectInput->clear();
 }
 
 void MainWindow::onDropItem() {
@@ -738,15 +899,19 @@ void MainWindow::onDropItem() {
         return;
     }
     
-    QString item = QInputDialog::getText(this, "Drop Item", "Enter item name to drop:");
-    if (item.isEmpty()) return;
+    QString input = dropInput->text().trimmed();
+    if (input.isEmpty()) {
+        showNotification("No Item", "Please enter item to drop [optional: count]", true);
+        return;
+    }
     
     QJsonObject data;
     data["id"] = currentBotId;
-    data["command"] = QString("drop %1").arg(item);
+    data["command"] = QString("drop %1").arg(input);
     sendMessage("bot_command", data);
     
-    addCommandToOutput(QString("drop %1").arg(item), "Dropping " + item + "...");
+    addCommandToOutput(QString("drop %1").arg(input), "Dropping item...");
+    dropInput->clear();
 }
 
 void MainWindow::onHuntAnimals() {
@@ -755,8 +920,11 @@ void MainWindow::onHuntAnimals() {
         return;
     }
     
-    QString animal = QInputDialog::getText(this, "Hunt Animals", "Enter animal to hunt (e.g., cow, pig, sheep):");
-    if (animal.isEmpty()) return;
+    QString animal = huntInput->text().trimmed();
+    if (animal.isEmpty()) {
+        showNotification("No Animal", "Please enter an animal to hunt", true);
+        return;
+    }
     
     QJsonObject data;
     data["id"] = currentBotId;
@@ -764,6 +932,7 @@ void MainWindow::onHuntAnimals() {
     sendMessage("bot_command", data);
     
     addCommandToOutput(QString("hunt %1").arg(animal), "Hunting " + animal + "...");
+    huntInput->clear();
 }
 
 void MainWindow::onHuntPlayers() {
@@ -772,16 +941,45 @@ void MainWindow::onHuntPlayers() {
         return;
     }
     
-    QString player = QInputDialog::getText(this, "Hunt Players", "Enter player name to hunt (leave empty for any):");
+    QString player = huntPlayerInput->text().trimmed();
     
     QJsonObject data;
     data["id"] = currentBotId;
     if (player.isEmpty()) {
         data["command"] = "hunt_player";
+        addCommandToOutput("hunt_player", "Searching for any player...");
     } else {
         data["command"] = QString("hunt_player %1").arg(player);
+        addCommandToOutput(QString("hunt_player %1").arg(player), "Hunting " + player + "...");
     }
     sendMessage("bot_command", data);
+    huntPlayerInput->clear();
+}
+
+void MainWindow::onStopAction() {
+    if (currentBotId.isEmpty()) {
+        showNotification("No Bot Selected", "Please select a bot first", true);
+        return;
+    }
     
-    addCommandToOutput(data["command"].toString(), "Searching for players...");
+    QJsonObject data;
+    data["id"] = currentBotId;
+    data["command"] = "stop";
+    sendMessage("bot_command", data);
+    
+    addCommandToOutput("stop", "Stopping all actions...");
+    taskStatusLabel->setText("No active task");
+    taskProgressBar->setValue(0);
+}
+
+void MainWindow::onRefreshTasks() {
+    if (currentBotId.isEmpty()) {
+        showNotification("No Bot Selected", "Please select a bot first", true);
+        return;
+    }
+    
+    QJsonObject data;
+    data["id"] = currentBotId;
+    data["command"] = "tasks";
+    sendMessage("bot_command", data);
 }

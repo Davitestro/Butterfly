@@ -21,10 +21,12 @@ set(HEADERS
     src/mainwindow.h
 )
 
+# UI files
 set(UI_FILES
     src/mainwindow.ui
 )
 
+# Resources - используем правильный путь
 set(RESOURCES
     src/resources/resources.qrc
 )

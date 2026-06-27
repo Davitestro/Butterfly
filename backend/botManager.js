@@ -8,6 +8,7 @@ class BotManager {
         this.bots = [];
         this.instances = {};
         this.botData = {};
+        this.botTasks = {};
         this.broadcastCallback = null;
         this.saveCallback = null;
         this.wsClients = new Set();
@@ -249,13 +250,25 @@ class BotManager {
             lastUpdate: Date.now()
         };
 
+        // Initialize tasks for this bot
+        if (!this.botTasks) {
+            this.botTasks = {};
+        }
+        this.botTasks[botConfig.id] = {
+            tasks: [],
+            currentTask: null,
+            completed: 0,
+            total: 0,
+            isRunning: false,
+            progress: 0
+        };
+
         const botEntry = this.bots.find(b => b.id === botConfig.id);
         if (botEntry) {
             botEntry.status = 'connecting';
             this.saveBots();
         }
 
-        // Загружаем pathfinder
         try {
             bot.loadPlugin(pathfinder);
             console.log(`[${botConfig.name}] Pathfinder loaded`);
@@ -263,7 +276,6 @@ class BotManager {
             console.log(`[${botConfig.name}] Pathfinder already loaded`);
         }
 
-        // Настраиваем pathfinder после спавна - используем правильный импорт
         bot.once('spawn', () => {
             try {
                 const mcData = require('minecraft-data')(bot.version);
@@ -303,8 +315,50 @@ class BotManager {
             const data = this.botData[botId];
             if (!data) return;
 
+            // Update dimension
+            if (bot.game) {
+                data.dimension = bot.game.dimension || 'Overworld';
+                data.gamemode = bot.game.gamemode || 'Survival';
+            }
+
+            // Update health
+            if (bot.health !== undefined) {
+                data.health = Math.round(bot.health * 10) / 10;
+            }
+            if (bot.food !== undefined) {
+                data.food = bot.food;
+            }
+            if (bot.experience !== undefined) {
+                data.experience = Math.round(bot.experience);
+            }
+            if (bot.level !== undefined) {
+                data.level = bot.level;
+            }
+
+            // Update position
+            if (bot.entity && bot.entity.position) {
+                data.position = {
+                    x: Math.round(bot.entity.position.x * 10) / 10,
+                    y: Math.round(bot.entity.position.y * 10) / 10,
+                    z: Math.round(bot.entity.position.z * 10) / 10
+                };
+            }
+
+            // Update inventory
+            if (bot.inventory) {
+                data.inventory = bot.inventory.items().map(item => ({
+                    name: item.name,
+                    count: item.count,
+                    slot: item.slot,
+                    displayName: item.displayName || item.name
+                }));
+            }
+
+            data.lastUpdate = Date.now();
+
+            // Send stats update
             const cleanData = {
-                health: Math.round((data.health || 20) * 10) / 10,
+                health: data.health || 20,
                 food: data.food || 20,
                 experience: data.experience || 0,
                 level: data.level || 0,
@@ -317,7 +371,7 @@ class BotManager {
                     slot: item.slot || 0,
                     displayName: item.displayName || item.name || 'unknown'
                 })),
-                lastUpdate: Date.now()
+                lastUpdate: data.lastUpdate
             };
 
             this.sendToAllClients({
@@ -332,17 +386,35 @@ class BotManager {
                 });
             }
 
+            // Send task progress
+            const taskInfo = this.botTasks && this.botTasks[botId];
+            if (taskInfo && taskInfo.currentTask) {
+                this.sendToAllClients({
+                    type: 'task_progress',
+                    data: {
+                        currentTask: taskInfo.currentTask,
+                        progress: taskInfo.progress || 0,
+                        total: taskInfo.total || 0,
+                        completed: taskInfo.completed || 0
+                    }
+                });
+            }
+
         }, 1000);
 
         this.botData[botId].updateInterval = updateInterval;
     }
 
     cleanup() {
+        console.log('🧹 Cleaning up bot manager...');
         Object.keys(this.instances).forEach(id => {
             if (this.instances[id]) {
                 try {
+                    console.log(`Stopping bot ${id}...`);
                     this.instances[id].end();
-                } catch (e) {}
+                } catch (e) {
+                    console.error(`Error stopping bot ${id}:`, e.message);
+                }
             }
             if (this.botData[id] && this.botData[id].updateInterval) {
                 clearInterval(this.botData[id].updateInterval);
@@ -350,7 +422,9 @@ class BotManager {
         });
         this.instances = {};
         this.botData = {};
+        this.botTasks = {};
         this.wsClients.clear();
+        console.log('✅ Cleanup complete');
     }
 }
 
