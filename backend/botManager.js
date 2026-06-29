@@ -2,6 +2,7 @@ const mineflayer = require('mineflayer');
 const { pathfinder } = require('mineflayer-pathfinder');
 const fs = require('fs');
 const path = require('path');
+const { SurvivalAI } = require('./survivalAI');
 
 class BotManager {
     constructor() {
@@ -9,6 +10,7 @@ class BotManager {
         this.instances = {};
         this.botData = {};
         this.botTasks = {};
+        this.survivalAIs = {};
         this.broadcastCallback = null;
         this.saveCallback = null;
         this.wsClients = new Set();
@@ -169,6 +171,10 @@ class BotManager {
         if (index === -1) return false;
         
         if (this.instances[id]) {
+            if (this.survivalAIs[id]) {
+                this.survivalAIs[id].stop();
+                delete this.survivalAIs[id];
+            }
             this.instances[id].end();
             delete this.instances[id];
             delete this.botData[id];
@@ -207,6 +213,10 @@ class BotManager {
 
     stopBot(id) {
         if (this.instances[id]) {
+            if (this.survivalAIs[id]) {
+                this.survivalAIs[id].stop();
+                delete this.survivalAIs[id];
+            }
             this.instances[id].end();
             return true;
         }
@@ -293,6 +303,13 @@ class BotManager {
 
         const botCommands = require('./botCommands');
         botCommands.setupCommands(bot, botConfig, this);
+
+        // Start survival AI
+        const survivalAI = new SurvivalAI(bot, botConfig, this);
+        this.survivalAIs[botConfig.id] = survivalAI;
+        bot.once('spawn', () => {
+            setTimeout(() => survivalAI.start(), 2000);
+        });
 
         this._startStatusUpdates(botConfig.id);
 
@@ -408,6 +425,9 @@ class BotManager {
     cleanup() {
         console.log('🧹 Cleaning up bot manager...');
         Object.keys(this.instances).forEach(id => {
+            if (this.survivalAIs[id]) {
+                this.survivalAIs[id].stop();
+            }
             if (this.instances[id]) {
                 try {
                     console.log(`Stopping bot ${id}...`);
@@ -423,6 +443,7 @@ class BotManager {
         this.instances = {};
         this.botData = {};
         this.botTasks = {};
+        this.survivalAIs = {};
         this.wsClients.clear();
         console.log('✅ Cleanup complete');
     }

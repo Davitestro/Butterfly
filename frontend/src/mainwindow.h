@@ -18,6 +18,14 @@
 #include <QLineEdit>
 #include <QComboBox>
 #include <QSpinBox>
+#include <QPropertyAnimation>
+#include <QParallelAnimationGroup>
+#include <QSequentialAnimationGroup>
+#include <QScrollArea>
+#include <QWidget>
+#include <QPainter>
+#include <QMouseEvent>
+#include <QVector>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -42,6 +50,48 @@ struct BotTask {
     int progress;
 };
 
+struct MapEntity {
+    QString name;
+    int x, y, z;
+    bool hostile;
+    int distance;
+};
+
+struct MapPlayer {
+    QString name;
+    int x, y, z;
+    int distance;
+};
+
+struct MapData {
+    int centerX, centerY, centerZ;
+    QMap<QString, QString> blocks;
+    QVector<MapEntity> entities;
+    QVector<MapPlayer> players;
+};
+
+class MinimapWidget : public QWidget {
+    Q_OBJECT
+public:
+    explicit MinimapWidget(QWidget* parent = nullptr);
+    void setMapData(const MapData& data);
+    void setNoData(bool noData);
+    QSize sizeHint() const override { return QSize(280, 280); }
+    QSize minimumSizeHint() const override { return QSize(200, 200); }
+
+protected:
+    void paintEvent(QPaintEvent* event) override;
+
+private:
+    MapData mapData;
+    bool noDataState;
+    void drawGrid(QPainter& painter, const QRect& rect);
+    void drawBlocks(QPainter& painter, const QRect& rect, int cellSize);
+    void drawEntities(QPainter& painter, const QRect& rect, int cellSize);
+    void drawBot(QPainter& painter, const QRect& rect);
+    QColor getBlockColor(const QString& blockName);
+};
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -51,7 +101,6 @@ public:
     ~MainWindow();
 
 private slots:
-    // Bot management
     void onAddBot();
     void onEditBot();
     void onDeleteBot();
@@ -59,14 +108,10 @@ private slots:
     void onStopBot();
     void onBotDoubleClicked(QListWidgetItem* item);
     void onBotSelected(QListWidgetItem* item);
-    
-    // WebSocket
     void onWebSocketConnected();
     void onWebSocketDisconnected();
     void onWebSocketMessage(const QString& message);
     void reconnectWebSocket();
-    
-    // Bot commands
     void onSendCommand();
     void onMoveTo();
     void onFollowPlayer();
@@ -83,7 +128,6 @@ private:
     QWebSocket* webSocket;
     QTimer* reconnectTimer;
     
-    // UI Components
     QListWidget* botList;
     QTabWidget* centralTabs;
     QWidget* infoWidget;
@@ -91,13 +135,14 @@ private:
     QWidget* tasksWidget;
     QWidget* commandsWidget;
     
-    // Bot info
     QLabel* botNameLabel;
     QLabel* botStatusLabel;
     QLabel* botServerLabel;
     QLabel* botUsernameLabel;
     QProgressBar* healthBar;
     QProgressBar* foodBar;
+    QLabel* healthValueLabel;
+    QLabel* foodValueLabel;
     QLabel* expLabel;
     QLabel* levelLabel;
     QLabel* coordsLabel;
@@ -106,14 +151,14 @@ private:
     QLabel* taskStatusLabel;
     QProgressBar* taskProgressBar;
     
-    // Inventory
-    QTableWidget* inventoryTable;
+    MinimapWidget* minimap;
+    QWidget* noDataOverlay;
+    QLabel* noDataLabel;
     
-    // Tasks
+    QTableWidget* inventoryTable;
     QTableWidget* tasksTable;
     QPushButton* refreshTasksButton;
     
-    // Commands
     QTextEdit* commandOutput;
     QLineEdit* commandInput;
     QPushButton* sendButton;
@@ -132,14 +177,22 @@ private:
     QLineEdit* huntPlayerInput;
     QPushButton* stopActionButton;
     
-    // Side panel buttons
     QPushButton* addButton;
     QPushButton* deleteButton;
     QPushButton* startButton;
     QPushButton* stopButton;
     QPushButton* editButton;
     
-    // State
+    QLabel* statusGlow;
+    QTimer* statusPulseTimer;
+    
+    bool botOnline;
+    
+    void setupAnimations();
+    void animateTabSwitch(int index);
+    void pulseStatusIndicator();
+    void setBotOnlineState(bool online);
+    
     QString currentBotId;
     QMap<QString, QJsonObject> botDataCache;
     
@@ -151,6 +204,7 @@ private:
     void updateInventory(const QJsonArray& inventory);
     void updateTasks(const QJsonArray& tasks);
     void updateTaskProgress(const QJsonObject& taskData);
+    void updateMap(const QJsonObject& mapData);
     void showNotification(const QString& title, const QString& message, bool isError = false);
     void sendMessage(const QString& type, const QJsonObject& data = QJsonObject());
     void sendMessage(const QString& type);

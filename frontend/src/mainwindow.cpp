@@ -17,7 +17,6 @@
 #include <QGroupBox>
 #include <QProgressBar>
 #include <QLabel>
-#include <QPushButton>
 #include <QFrame>
 #include <QScrollArea>
 #include <QInputDialog>
@@ -25,38 +24,63 @@
 #include <QJsonArray>
 #include <QComboBox>
 #include <QCheckBox>
+#include <QPropertyAnimation>
+#include <QParallelAnimationGroup>
+#include <QSequentialAnimationGroup>
+#include <QTimer>
+#include <QEasingCurve>
+#include <QPainter>
+#include <QApplication>
 
 class BotDialog : public QDialog {
 public:
     BotDialog(QWidget* parent = nullptr, const BotData* existing = nullptr, const QJsonObject* fullData = nullptr) : QDialog(parent) {
         setWindowTitle(existing ? "Edit Bot" : "Add Bot");
-        resize(400, 400);
+        resize(420, 380);
+        setObjectName("botDialog");
         
         QVBoxLayout* mainLayout = new QVBoxLayout(this);
+        mainLayout->setSpacing(16);
+        mainLayout->setContentsMargins(24, 24, 24, 24);
+        
+        QLabel* titleLabel = new QLabel(existing ? "Edit Bot Configuration" : "Create New Bot", this);
+        titleLabel->setObjectName("dialogTitle");
+        mainLayout->addWidget(titleLabel);
+        
         QFormLayout* form = new QFormLayout();
+        form->setSpacing(12);
+        form->setLabelAlignment(Qt::AlignRight);
         
         nameEdit = new QLineEdit(this);
+        nameEdit->setObjectName("formInput");
+        nameEdit->setPlaceholderText("My Bot");
         form->addRow("Bot Name:", nameEdit);
         
         serverEdit = new QLineEdit(this);
+        serverEdit->setObjectName("formInput");
+        serverEdit->setPlaceholderText("play.example.com");
         form->addRow("Server:", serverEdit);
         
         portSpin = new QSpinBox(this);
+        portSpin->setObjectName("formInput");
         portSpin->setRange(1, 65535);
         portSpin->setValue(25565);
         form->addRow("Port:", portSpin);
         
         usernameEdit = new QLineEdit(this);
+        usernameEdit->setObjectName("formInput");
+        usernameEdit->setPlaceholderText("Steve");
         form->addRow("Username:", usernameEdit);
         
         passwordEdit = new QLineEdit(this);
+        passwordEdit->setObjectName("formInput");
         passwordEdit->setEchoMode(QLineEdit::Password);
         passwordEdit->setPlaceholderText("Leave empty for offline mode");
         form->addRow("Password:", passwordEdit);
         
         if (existing) {
             infoLabel = new QLabel(this);
-            infoLabel->setStyleSheet("color: gray; font-size: 10px;");
+            infoLabel->setObjectName("infoLabelSmall");
             if (fullData) {
                 QString created = fullData->value("createdAt").toString();
                 QString modified = fullData->value("lastModified").toString();
@@ -69,12 +93,14 @@ public:
         }
         
         mainLayout->addLayout(form);
+        mainLayout->addStretch();
         
         QDialogButtonBox* buttons = new QDialogButtonBox(
             QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
             Qt::Horizontal,
             this
         );
+        buttons->setObjectName("dialogButtons");
         mainLayout->addWidget(buttons);
         
         connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
@@ -113,9 +139,13 @@ private:
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
+    , statusGlow(nullptr)
+    , statusPulseTimer(nullptr)
+    , botOnline(false)
 {
     ui->setupUi(this);
     setupUI();
+    setupAnimations();
     setupWebSocket();
 }
 
@@ -124,35 +154,118 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
+QFrame* MainWindow_createCard(QWidget* parent) {
+    QFrame* card = new QFrame(parent);
+    card->setObjectName("card");
+    return card;
+}
+
 void MainWindow::setupUI() {
     setWindowTitle("Minecraft Bot Manager");
-    resize(1300, 750);
+    resize(1400, 800);
+    setMinimumSize(1100, 650);
     
     QWidget* central = new QWidget(this);
+    central->setObjectName("centralWidget");
     setCentralWidget(central);
     QHBoxLayout* mainLayout = new QHBoxLayout(central);
+    mainLayout->setSpacing(0);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
     
-    // === LEFT PANEL - Bot List ===
-    QWidget* leftPanel = new QWidget(this);
-    leftPanel->setFixedWidth(280);
-    QVBoxLayout* leftLayout = new QVBoxLayout(leftPanel);
+    // ==================== LEFT SIDEBAR ====================
+    QWidget* sidebar = new QWidget(this);
+    sidebar->setObjectName("sidebar");
+    sidebar->setFixedWidth(300);
     
-    QLabel* listLabel = new QLabel("🤖 Bots", this);
-    listLabel->setStyleSheet("font-size: 14px; font-weight: bold;");
-    leftLayout->addWidget(listLabel);
+    QVBoxLayout* sidebarLayout = new QVBoxLayout(sidebar);
+    sidebarLayout->setSpacing(0);
+    sidebarLayout->setContentsMargins(0, 0, 0, 0);
     
+    // --- Sidebar Header ---
+    QWidget* sidebarHeader = new QWidget(this);
+    sidebarHeader->setObjectName("sidebarHeader");
+    sidebarHeader->setFixedHeight(80);
+    QVBoxLayout* headerLay = new QVBoxLayout(sidebarHeader);
+    headerLay->setContentsMargins(20, 16, 20, 16);
+    
+    QLabel* appTitle = new QLabel("MC Bot Manager", this);
+    appTitle->setObjectName("appTitle");
+    headerLay->addWidget(appTitle);
+    
+    QLabel* appSubtitle = new QLabel("Control your bots", this);
+    appSubtitle->setObjectName("appSubtitle");
+    headerLay->addWidget(appSubtitle);
+    
+    sidebarLayout->addWidget(sidebarHeader);
+    
+    // --- Bots Section Label ---
+    QWidget* botsHeader = new QWidget(this);
+    botsHeader->setObjectName("sectionHeader");
+    botsHeader->setFixedHeight(40);
+    QHBoxLayout* botsHLay = new QHBoxLayout(botsHeader);
+    botsHLay->setContentsMargins(20, 0, 20, 0);
+    
+    QLabel* botsLabel = new QLabel("BOTS", this);
+    botsLabel->setObjectName("sectionLabel");
+    botsHLay->addWidget(botsLabel);
+    botsHLay->addStretch();
+    
+    QLabel* botCountLabel = new QLabel("0", this);
+    botCountLabel->setObjectName("badge");
+    botsHLay->addWidget(botCountLabel);
+    
+    sidebarLayout->addWidget(botsHeader);
+    
+    // --- Bot List ---
     botList = new QListWidget(this);
-    botList->setMinimumHeight(400);
+    botList->setObjectName("botList");
+    botList->setMinimumHeight(300);
     connect(botList, &QListWidget::itemClicked, this, &MainWindow::onBotSelected);
     connect(botList, &QListWidget::itemDoubleClicked, this, &MainWindow::onBotDoubleClicked);
-    leftLayout->addWidget(botList);
+    sidebarLayout->addWidget(botList, 1);
     
-    QGridLayout* botButtons = new QGridLayout();
-    addButton = new QPushButton("➕ Add", this);
-    deleteButton = new QPushButton("🗑 Delete", this);
-    editButton = new QPushButton("✏️ Edit", this);
-    startButton = new QPushButton("▶ Start", this);
-    stopButton = new QPushButton("⏹ Stop", this);
+    // --- Action Buttons ---
+    QWidget* actionsPanel = new QWidget(this);
+    actionsPanel->setObjectName("actionsPanel");
+    QVBoxLayout* actionsLayout = new QVBoxLayout(actionsPanel);
+    actionsLayout->setSpacing(6);
+    actionsLayout->setContentsMargins(16, 12, 16, 16);
+    
+    addButton = new QPushButton("Add Bot", this);
+    addButton->setObjectName("addButton");
+    addButton->setCursor(Qt::PointingHandCursor);
+    addButton->setMinimumHeight(36);
+    actionsLayout->addWidget(addButton);
+    
+    QHBoxLayout* editDelLayout = new QHBoxLayout();
+    editDelLayout->setSpacing(6);
+    editButton = new QPushButton("Edit", this);
+    editButton->setObjectName("editButton");
+    editButton->setCursor(Qt::PointingHandCursor);
+    editButton->setMinimumHeight(34);
+    deleteButton = new QPushButton("Delete", this);
+    deleteButton->setObjectName("deleteButton");
+    deleteButton->setCursor(Qt::PointingHandCursor);
+    deleteButton->setMinimumHeight(34);
+    editDelLayout->addWidget(editButton);
+    editDelLayout->addWidget(deleteButton);
+    actionsLayout->addLayout(editDelLayout);
+    
+    QHBoxLayout* startStopLayout = new QHBoxLayout();
+    startStopLayout->setSpacing(6);
+    startButton = new QPushButton("Start", this);
+    startButton->setObjectName("startButton");
+    startButton->setCursor(Qt::PointingHandCursor);
+    startButton->setMinimumHeight(34);
+    stopButton = new QPushButton("Stop", this);
+    stopButton->setObjectName("stopButton");
+    stopButton->setCursor(Qt::PointingHandCursor);
+    stopButton->setMinimumHeight(34);
+    startStopLayout->addWidget(startButton);
+    startStopLayout->addWidget(stopButton);
+    actionsLayout->addLayout(startStopLayout);
+    
+    sidebarLayout->addWidget(actionsPanel);
     
     connect(addButton, &QPushButton::clicked, this, &MainWindow::onAddBot);
     connect(deleteButton, &QPushButton::clicked, this, &MainWindow::onDeleteBot);
@@ -160,283 +273,560 @@ void MainWindow::setupUI() {
     connect(startButton, &QPushButton::clicked, this, &MainWindow::onStartBot);
     connect(stopButton, &QPushButton::clicked, this, &MainWindow::onStopBot);
     
-    botButtons->addWidget(addButton, 0, 0);
-    botButtons->addWidget(deleteButton, 0, 1);
-    botButtons->addWidget(editButton, 0, 2);
-    botButtons->addWidget(startButton, 1, 0);
-    botButtons->addWidget(stopButton, 1, 1);
-    leftLayout->addLayout(botButtons);
+    mainLayout->addWidget(sidebar);
     
-    leftLayout->addStretch();
-    mainLayout->addWidget(leftPanel);
-    
-    // === CENTER PANEL ===
+    // ==================== CENTER CONTENT ====================
     QWidget* centerPanel = new QWidget(this);
+    centerPanel->setObjectName("centerPanel");
     QVBoxLayout* centerLayout = new QVBoxLayout(centerPanel);
+    centerLayout->setSpacing(0);
+    centerLayout->setContentsMargins(0, 0, 0, 0);
     
-    // Bot info header
+    // --- Top Header Bar ---
     QFrame* headerFrame = new QFrame(this);
-    headerFrame->setFrameStyle(QFrame::StyledPanel);
+    headerFrame->setObjectName("headerFrame");
+    headerFrame->setFixedHeight(70);
     QHBoxLayout* headerLayout = new QHBoxLayout(headerFrame);
+    headerLayout->setContentsMargins(24, 12, 24, 12);
+    headerLayout->setSpacing(16);
+    
+    // Status glow indicator
+    statusGlow = new QLabel(this);
+    statusGlow->setObjectName("statusGlow");
+    statusGlow->setFixedSize(12, 12);
+    headerLayout->addWidget(statusGlow);
     
     botNameLabel = new QLabel("No bot selected", this);
-    botNameLabel->setStyleSheet("font-size: 16px; font-weight: bold;");
+    botNameLabel->setObjectName("botNameLabel");
     headerLayout->addWidget(botNameLabel);
     
-    botStatusLabel = new QLabel("⚪ Offline", this);
-    botStatusLabel->setStyleSheet("font-size: 14px;");
+    botStatusLabel = new QLabel("Offline", this);
+    botStatusLabel->setObjectName("botStatusLabel");
     headerLayout->addWidget(botStatusLabel);
+    
     headerLayout->addStretch();
     
+    // Task progress in header
+    QWidget* taskInfoWidget = new QWidget(this);
+    taskInfoWidget->setObjectName("taskInfoWidget");
+    QHBoxLayout* taskInfoLayout = new QHBoxLayout(taskInfoWidget);
+    taskInfoLayout->setContentsMargins(0, 0, 0, 0);
+    taskInfoLayout->setSpacing(10);
+    
+    taskStatusLabel = new QLabel("No active task", this);
+    taskStatusLabel->setObjectName("taskStatusLabel");
+    taskInfoLayout->addWidget(taskStatusLabel);
+    
+    taskProgressBar = new QProgressBar(this);
+    taskProgressBar->setObjectName("taskProgressBar");
+    taskProgressBar->setRange(0, 100);
+    taskProgressBar->setValue(0);
+    taskProgressBar->setFixedWidth(160);
+    taskProgressBar->setFixedHeight(8);
+    taskInfoLayout->addWidget(taskProgressBar);
+    
+    headerLayout->addWidget(taskInfoWidget);
+    
+    // Server & username tags
     botServerLabel = new QLabel("", this);
+    botServerLabel->setObjectName("infoTag");
     headerLayout->addWidget(botServerLabel);
     botUsernameLabel = new QLabel("", this);
+    botUsernameLabel->setObjectName("infoTag");
     headerLayout->addWidget(botUsernameLabel);
     
     centerLayout->addWidget(headerFrame);
     
-    // Task progress bar
-    QHBoxLayout* taskLayout = new QHBoxLayout();
-    taskStatusLabel = new QLabel("No active task", this);
-    taskStatusLabel->setStyleSheet("font-size: 12px; color: gray;");
-    taskLayout->addWidget(taskStatusLabel);
-    taskProgressBar = new QProgressBar(this);
-    taskProgressBar->setRange(0, 100);
-    taskProgressBar->setValue(0);
-    taskProgressBar->setFixedWidth(200);
-    taskLayout->addWidget(taskProgressBar);
-    taskLayout->addStretch();
-    centerLayout->addLayout(taskLayout);
+    // --- Tabs Area ---
+    QWidget* tabsContainer = new QWidget(this);
+    tabsContainer->setObjectName("tabsContainer");
+    QVBoxLayout* tabsContainerLayout = new QVBoxLayout(tabsContainer);
+    tabsContainerLayout->setContentsMargins(20, 20, 20, 20);
+    tabsContainerLayout->setSpacing(0);
     
-    // Tabs
     centralTabs = new QTabWidget(this);
+    centralTabs->setObjectName("centralTabs");
     
     // === Tab 1: Bot Info ===
     infoWidget = new QWidget(this);
-    QGridLayout* infoLayout = new QGridLayout(infoWidget);
+    infoWidget->setObjectName("infoTab");
+    QVBoxLayout* infoVLayout = new QVBoxLayout(infoWidget);
+    infoVLayout->setSpacing(16);
+    infoVLayout->setContentsMargins(8, 12, 8, 8);
     
-    QLabel* healthLabel = new QLabel("❤️ Health:", this);
+    // Stats cards row
+    QWidget* statsRow = new QWidget(this);
+    statsRow->setObjectName("statsRow");
+    QHBoxLayout* statsLayout = new QHBoxLayout(statsRow);
+    statsLayout->setSpacing(12);
+    statsLayout->setContentsMargins(0, 0, 0, 0);
+    
+    // Health Card
+    QFrame* healthCard = MainWindow_createCard(this);
+    healthCard->setObjectName("healthCard");
+    QVBoxLayout* hcLay = new QVBoxLayout(healthCard);
+    hcLay->setContentsMargins(16, 12, 16, 12);
+    hcLay->setSpacing(6);
+    QLabel* healthIcon = new QLabel("HP", this);
+    healthIcon->setObjectName("statIcon");
+    hcLay->addWidget(healthIcon);
     healthBar = new QProgressBar(this);
+    healthBar->setObjectName("healthBar");
     healthBar->setRange(0, 20);
     healthBar->setValue(20);
-    healthBar->setStyleSheet("QProgressBar::chunk { background-color: #00ff00; }");
-    infoLayout->addWidget(healthLabel, 0, 0);
-    infoLayout->addWidget(healthBar, 0, 1);
+    healthBar->setFixedHeight(6);
+    healthBar->setTextVisible(false);
+    hcLay->addWidget(healthBar);
+    healthValueLabel = new QLabel("-- / 20", this);
+    healthValueLabel->setObjectName("statValue");
+    hcLay->addWidget(healthValueLabel);
+    statsLayout->addWidget(healthCard);
     
-    QLabel* foodLabel = new QLabel("🍖 Food:", this);
+    // Food Card
+    QFrame* foodCard = MainWindow_createCard(this);
+    foodCard->setObjectName("foodCard");
+    QVBoxLayout* fcLay = new QVBoxLayout(foodCard);
+    fcLay->setContentsMargins(16, 12, 16, 12);
+    fcLay->setSpacing(6);
+    QLabel* foodIcon = new QLabel("FOOD", this);
+    foodIcon->setObjectName("statIcon");
+    fcLay->addWidget(foodIcon);
     foodBar = new QProgressBar(this);
+    foodBar->setObjectName("foodBar");
     foodBar->setRange(0, 20);
     foodBar->setValue(20);
-    foodBar->setStyleSheet("QProgressBar::chunk { background-color: #ff8800; }");
-    infoLayout->addWidget(foodLabel, 1, 0);
-    infoLayout->addWidget(foodBar, 1, 1);
+    foodBar->setFixedHeight(6);
+    foodBar->setTextVisible(false);
+    fcLay->addWidget(foodBar);
+    foodValueLabel = new QLabel("-- / 20", this);
+    foodValueLabel->setObjectName("statValue");
+    fcLay->addWidget(foodValueLabel);
+    statsLayout->addWidget(foodCard);
     
-    QLabel* expTextLabel = new QLabel("⭐ Experience:", this);
+    // XP Card
+    QFrame* xpCard = MainWindow_createCard(this);
+    xpCard->setObjectName("xpCard");
+    QVBoxLayout* xcLay = new QVBoxLayout(xpCard);
+    xcLay->setContentsMargins(16, 12, 16, 12);
+    xcLay->setSpacing(6);
+    QLabel* xpIcon = new QLabel("XP", this);
+    xpIcon->setObjectName("statIcon");
+    xcLay->addWidget(xpIcon);
     expLabel = new QLabel("0", this);
-    infoLayout->addWidget(expTextLabel, 2, 0);
-    infoLayout->addWidget(expLabel, 2, 1);
+    expLabel->setObjectName("statBigValue");
+    xcLay->addWidget(expLabel);
+    QLabel* xpSub = new QLabel("Experience", this);
+    xpSub->setObjectName("statSubtext");
+    xcLay->addWidget(xpSub);
+    statsLayout->addWidget(xpCard);
     
-    QLabel* levelTextLabel = new QLabel("📈 Level:", this);
+    // Level Card
+    QFrame* levelCard = MainWindow_createCard(this);
+    levelCard->setObjectName("levelCard");
+    QVBoxLayout* lcLay = new QVBoxLayout(levelCard);
+    lcLay->setContentsMargins(16, 12, 16, 12);
+    lcLay->setSpacing(6);
+    QLabel* lvlIcon = new QLabel("LVL", this);
+    lvlIcon->setObjectName("statIcon");
+    lcLay->addWidget(lvlIcon);
     levelLabel = new QLabel("0", this);
-    infoLayout->addWidget(levelTextLabel, 3, 0);
-    infoLayout->addWidget(levelLabel, 3, 1);
+    levelLabel->setObjectName("statBigValue");
+    lcLay->addWidget(levelLabel);
+    QLabel* lvlSub = new QLabel("Level", this);
+    lvlSub->setObjectName("statSubtext");
+    lcLay->addWidget(lvlSub);
+    statsLayout->addWidget(levelCard);
     
-    QLabel* coordsTextLabel = new QLabel("📍 Position:", this);
+    infoVLayout->addWidget(statsRow);
+    
+    // === Minimap ===
+    QWidget* mapSection = new QWidget(this);
+    mapSection->setObjectName("mapSection");
+    QHBoxLayout* mapLayout = new QHBoxLayout(mapSection);
+    mapLayout->setContentsMargins(0, 0, 0, 0);
+    mapLayout->setSpacing(16);
+    
+    QFrame* mapCard = MainWindow_createCard(this);
+    mapCard->setObjectName("mapCard");
+    QVBoxLayout* mapCardLayout = new QVBoxLayout(mapCard);
+    mapCardLayout->setContentsMargins(12, 12, 12, 12);
+    mapCardLayout->setSpacing(8);
+    
+    QLabel* mapTitle = new QLabel("AREA MAP", this);
+    mapTitle->setObjectName("mapTitle");
+    mapCardLayout->addWidget(mapTitle);
+    
+    // Minimap with overlay
+    QWidget* mapContainer = new QWidget(this);
+    mapContainer->setObjectName("mapContainer");
+    mapContainer->setFixedSize(280, 280);
+    QVBoxLayout* mapContainerLayout = new QVBoxLayout(mapContainer);
+    mapContainerLayout->setContentsMargins(0, 0, 0, 0);
+    
+    minimap = new MinimapWidget(mapContainer);
+    minimap->setFixedSize(280, 280);
+    mapContainerLayout->addWidget(minimap);
+    
+    // No-data overlay
+    noDataOverlay = new QWidget(mapContainer);
+    noDataOverlay->setObjectName("noDataOverlay");
+    noDataOverlay->setFixedSize(280, 280);
+    noDataOverlay->setVisible(true);
+    QVBoxLayout* ndLayout = new QVBoxLayout(noDataOverlay);
+    ndLayout->setAlignment(Qt::AlignCenter);
+    noDataLabel = new QLabel("Bot Offline", this);
+    noDataLabel->setObjectName("noDataLabel");
+    ndLayout->addWidget(noDataLabel);
+    QLabel* ndSub = new QLabel("Start a bot to see map data", this);
+    ndSub->setObjectName("noDataSubLabel");
+    ndLayout->addWidget(ndSub);
+    
+    mapCardLayout->addWidget(mapContainer);
+    
+    // Map legend
+    QHBoxLayout* legendLayout = new QHBoxLayout();
+    legendLayout->setSpacing(12);
+    auto addLegendItem = [&](const QString& color, const QString& label) {
+        QLabel* dot = new QLabel(this);
+        dot->setFixedSize(10, 10);
+        dot->setStyleSheet("background: " + color + "; border-radius: 5px;");
+        QLabel* lbl = new QLabel(label, this);
+        lbl->setObjectName("legendLabel");
+        legendLayout->addWidget(dot);
+        legendLayout->addWidget(lbl);
+    };
+    addLegendItem("#4ade80", "You");
+    addLegendItem("#f87171", "Hostile");
+    addLegendItem("#60a5fa", "Player");
+    addLegendItem("#a78bfa", "Mob");
+    legendLayout->addStretch();
+    mapCardLayout->addLayout(legendLayout);
+    
+    mapLayout->addWidget(mapCard);
+    
+    // Details section (right side of map row)
+    QFrame* detailsCard = MainWindow_createCard(this);
+    detailsCard->setObjectName("detailsCard");
+    QGridLayout* detailsGrid = new QGridLayout(detailsCard);
+    detailsGrid->setContentsMargins(20, 16, 20, 16);
+    detailsGrid->setSpacing(12);
+    
+    auto addDetailRow = [&](int row, const QString& icon, const QString& label, QWidget* valueWidget) {
+        QLabel* iconLbl = new QLabel(icon, this);
+        iconLbl->setObjectName("detailIcon");
+        detailsGrid->addWidget(iconLbl, row, 0);
+        
+        QLabel* nameLbl = new QLabel(label, this);
+        nameLbl->setObjectName("detailLabel");
+        detailsGrid->addWidget(nameLbl, row, 1);
+        
+        valueWidget->setObjectName("detailValue");
+        detailsGrid->addWidget(valueWidget, row, 2);
+    };
+    
     coordsLabel = new QLabel("X: 0, Y: 0, Z: 0", this);
-    infoLayout->addWidget(coordsTextLabel, 4, 0);
-    infoLayout->addWidget(coordsLabel, 4, 1);
+    addDetailRow(0, "POS", "Position", coordsLabel);
     
-    QLabel* dimTextLabel = new QLabel("🌍 Dimension:", this);
     dimensionLabel = new QLabel("Overworld", this);
-    infoLayout->addWidget(dimTextLabel, 5, 0);
-    infoLayout->addWidget(dimensionLabel, 5, 1);
+    addDetailRow(1, "DIM", "Dimension", dimensionLabel);
     
-    QLabel* gmTextLabel = new QLabel("🎮 Gamemode:", this);
     gamemodeLabel = new QLabel("Survival", this);
-    infoLayout->addWidget(gmTextLabel, 6, 0);
-    infoLayout->addWidget(gamemodeLabel, 6, 1);
+    addDetailRow(2, "GM", "Gamemode", gamemodeLabel);
     
-    infoLayout->setRowStretch(7, 1);
-    centralTabs->addTab(infoWidget, "📊 Info");
+    detailsGrid->setColumnStretch(2, 1);
+    
+    mapLayout->addWidget(detailsCard, 1);
+    
+    infoVLayout->addWidget(mapSection);
+    infoVLayout->addStretch();
+    
+    centralTabs->addTab(infoWidget, "Info");
     
     // === Tab 2: Inventory ===
     inventoryWidget = new QWidget(this);
+    inventoryWidget->setObjectName("inventoryTab");
     QVBoxLayout* invLayout = new QVBoxLayout(inventoryWidget);
+    invLayout->setContentsMargins(8, 12, 8, 8);
     
     inventoryTable = new QTableWidget(this);
+    inventoryTable->setObjectName("inventoryTable");
     inventoryTable->setColumnCount(3);
     inventoryTable->setHorizontalHeaderLabels({"Slot", "Item", "Count"});
     inventoryTable->horizontalHeader()->setStretchLastSection(true);
+    inventoryTable->horizontalHeader()->setObjectName("tableHeader");
     inventoryTable->setAlternatingRowColors(true);
+    inventoryTable->verticalHeader()->setVisible(false);
+    inventoryTable->setShowGrid(false);
+    inventoryTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    inventoryTable->setSelectionMode(QAbstractItemView::SingleSelection);
     invLayout->addWidget(inventoryTable);
     
-    centralTabs->addTab(inventoryWidget, "🎒 Inventory");
+    centralTabs->addTab(inventoryWidget, "Inventory");
     
     // === Tab 3: Tasks ===
     tasksWidget = new QWidget(this);
+    tasksWidget->setObjectName("tasksTab");
     QVBoxLayout* tasksLayout = new QVBoxLayout(tasksWidget);
+    tasksLayout->setContentsMargins(8, 12, 8, 8);
+    tasksLayout->setSpacing(12);
     
     tasksTable = new QTableWidget(this);
+    tasksTable->setObjectName("tasksTable");
     tasksTable->setColumnCount(4);
     tasksTable->setHorizontalHeaderLabels({"Task", "Status", "Progress", "Time"});
     tasksTable->horizontalHeader()->setStretchLastSection(true);
+    tasksTable->horizontalHeader()->setObjectName("tableHeader");
     tasksTable->setAlternatingRowColors(true);
+    tasksTable->verticalHeader()->setVisible(false);
+    tasksTable->setShowGrid(false);
+    tasksTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     tasksLayout->addWidget(tasksTable);
     
-    refreshTasksButton = new QPushButton("🔄 Refresh Tasks", this);
+    refreshTasksButton = new QPushButton("Refresh Tasks", this);
+    refreshTasksButton->setObjectName("refreshButton");
+    refreshTasksButton->setCursor(Qt::PointingHandCursor);
+    refreshTasksButton->setFixedWidth(160);
     connect(refreshTasksButton, &QPushButton::clicked, this, &MainWindow::onRefreshTasks);
-    tasksLayout->addWidget(refreshTasksButton);
+    tasksLayout->addWidget(refreshTasksButton, 0, Qt::AlignRight);
     
-    centralTabs->addTab(tasksWidget, "📋 Tasks");
+    centralTabs->addTab(tasksWidget, "Tasks");
     
     // === Tab 4: Commands ===
     commandsWidget = new QWidget(this);
+    commandsWidget->setObjectName("commandsTab");
     QVBoxLayout* cmdLayout = new QVBoxLayout(commandsWidget);
+    cmdLayout->setContentsMargins(8, 12, 8, 8);
+    cmdLayout->setSpacing(12);
     
     // Command output
     commandOutput = new QTextEdit(this);
+    commandOutput->setObjectName("commandOutput");
     commandOutput->setReadOnly(true);
-    commandOutput->setFont(QFont("Monospace", 10));
-    commandOutput->setMinimumHeight(150);
+    commandOutput->setFont(QFont("JetBrains Mono", 10));
+    commandOutput->setMinimumHeight(180);
     cmdLayout->addWidget(commandOutput);
     
-    // Command grid
-    QGridLayout* cmdGrid = new QGridLayout();
+    // Command grid in a card
+    QFrame* cmdCard = MainWindow_createCard(this);
+    cmdCard->setObjectName("commandCard");
+    QGridLayout* cmdGrid = new QGridLayout(cmdCard);
+    cmdGrid->setContentsMargins(16, 16, 16, 16);
+    cmdGrid->setSpacing(10);
     
-    // Row 1: Move To
-    cmdGrid->addWidget(new QLabel("Move To:", this), 0, 0);
-    moveToButton = new QPushButton("🎯 Move", this);
+    auto makeCmdRow = [&](int row, const QString& label, const QString& placeholder, 
+                          const QString& btnText, const QString& btnObjName,
+                          QPushButton*& outBtn, QLineEdit*& outInput, bool hasInput = true) {
+        QLabel* lbl = new QLabel(label, this);
+        lbl->setObjectName("cmdLabel");
+        cmdGrid->addWidget(lbl, row, 0);
+        
+        if (hasInput) {
+            outInput = new QLineEdit(this);
+            outInput->setObjectName("cmdInput");
+            outInput->setPlaceholderText(placeholder);
+            cmdGrid->addWidget(outInput, row, 1);
+        }
+        
+        outBtn = new QPushButton(btnText, this);
+        outBtn->setObjectName(btnObjName);
+        outBtn->setCursor(Qt::PointingHandCursor);
+        outBtn->setMinimumHeight(32);
+        cmdGrid->addWidget(outBtn, row, hasInput ? 2 : 1);
+    };
+    
+    moveToButton = nullptr;
+    followInput = nullptr;
+    guardInput = nullptr;
+    collectInput = nullptr;
+    dropInput = nullptr;
+    huntInput = nullptr;
+    huntPlayerInput = nullptr;
+    
+    makeCmdRow(0, "Move To:", "", "Move", "cmdMoveButton", moveToButton, followInput, false);
     connect(moveToButton, &QPushButton::clicked, this, &MainWindow::onMoveTo);
-    cmdGrid->addWidget(moveToButton, 0, 1);
     
-    // Row 2: Follow Player
-    cmdGrid->addWidget(new QLabel("Follow:", this), 1, 0);
-    followInput = new QLineEdit(this);
-    followInput->setPlaceholderText("Player name");
-    cmdGrid->addWidget(followInput, 1, 1);
-    followButton = new QPushButton("👤 Follow", this);
+    makeCmdRow(1, "Follow:", "Player name", "Follow", "cmdFollowButton", followButton, followInput);
     connect(followButton, &QPushButton::clicked, this, &MainWindow::onFollowPlayer);
-    cmdGrid->addWidget(followButton, 1, 2);
     
-    // Row 3: Guard
-    cmdGrid->addWidget(new QLabel("Guard:", this), 2, 0);
-    guardInput = new QLineEdit(this);
-    guardInput->setPlaceholderText("Radius");
+    makeCmdRow(2, "Guard:", "Radius", "Guard", "cmdGuardButton", guardButton, guardInput);
     guardInput->setText("10");
-    cmdGrid->addWidget(guardInput, 2, 1);
-    guardButton = new QPushButton("🛡️ Guard", this);
     connect(guardButton, &QPushButton::clicked, this, &MainWindow::onGuardArea);
-    cmdGrid->addWidget(guardButton, 2, 2);
     
-    // Row 4: Collect
-    cmdGrid->addWidget(new QLabel("Collect:", this), 3, 0);
-    collectInput = new QLineEdit(this);
-    collectInput->setPlaceholderText("Resource name");
-    cmdGrid->addWidget(collectInput, 3, 1);
-    collectButton = new QPushButton("⛏️ Collect", this);
+    makeCmdRow(3, "Collect:", "Resource name", "Collect", "cmdCollectButton", collectButton, collectInput);
     connect(collectButton, &QPushButton::clicked, this, &MainWindow::onCollectResources);
-    cmdGrid->addWidget(collectButton, 3, 2);
     
-    // Row 5: Drop
-    cmdGrid->addWidget(new QLabel("Drop:", this), 4, 0);
-    dropInput = new QLineEdit(this);
-    dropInput->setPlaceholderText("Item [count]");
-    cmdGrid->addWidget(dropInput, 4, 1);
-    dropButton = new QPushButton("🗑️ Drop", this);
+    makeCmdRow(4, "Drop:", "Item [count]", "Drop", "cmdDropButton", dropButton, dropInput);
     connect(dropButton, &QPushButton::clicked, this, &MainWindow::onDropItem);
-    cmdGrid->addWidget(dropButton, 4, 2);
     
-    // Row 6: Hunt Animals
-    cmdGrid->addWidget(new QLabel("Hunt:", this), 5, 0);
-    huntInput = new QLineEdit(this);
-    huntInput->setPlaceholderText("Animal name");
-    cmdGrid->addWidget(huntInput, 5, 1);
-    huntAnimalsButton = new QPushButton("🐄 Hunt", this);
+    makeCmdRow(5, "Hunt:", "Animal name", "Hunt", "cmdHuntButton", huntAnimalsButton, huntInput);
     connect(huntAnimalsButton, &QPushButton::clicked, this, &MainWindow::onHuntAnimals);
-    cmdGrid->addWidget(huntAnimalsButton, 5, 2);
     
-    // Row 7: Hunt Players
-    cmdGrid->addWidget(new QLabel("Hunt Player:", this), 6, 0);
-    huntPlayerInput = new QLineEdit(this);
-    huntPlayerInput->setPlaceholderText("Player name (optional)");
-    cmdGrid->addWidget(huntPlayerInput, 6, 1);
-    huntPlayersButton = new QPushButton("⚔️ Hunt", this);
+    makeCmdRow(6, "Hunt Player:", "Player name (optional)", "Hunt", "cmdHuntPlayerButton", huntPlayersButton, huntPlayerInput);
     connect(huntPlayersButton, &QPushButton::clicked, this, &MainWindow::onHuntPlayers);
-    cmdGrid->addWidget(huntPlayersButton, 6, 2);
     
-    // Row 8: Stop Action
-    cmdGrid->addWidget(new QLabel("", this), 7, 0);
-    stopActionButton = new QPushButton("🛑 STOP ALL ACTIONS", this);
-    stopActionButton->setStyleSheet("background-color: #ff4444; color: white; font-weight: bold;");
+    stopActionButton = new QPushButton("STOP ALL ACTIONS", this);
+    stopActionButton->setObjectName("stopActionButton");
+    stopActionButton->setCursor(Qt::PointingHandCursor);
+    stopActionButton->setMinimumHeight(36);
     connect(stopActionButton, &QPushButton::clicked, this, &MainWindow::onStopAction);
-    cmdGrid->addWidget(stopActionButton, 7, 1, 1, 2);
+    cmdGrid->addWidget(stopActionButton, 7, 0, 1, 3);
     
-    cmdLayout->addLayout(cmdGrid);
+    cmdLayout->addWidget(cmdCard);
     
-    // Custom command
-    QHBoxLayout* customCmdLayout = new QHBoxLayout();
+    // Custom command bar
+    QFrame* customCmdFrame = new QFrame(this);
+    customCmdFrame->setObjectName("customCmdFrame");
+    QHBoxLayout* customCmdLayout = new QHBoxLayout(customCmdFrame);
+    customCmdLayout->setContentsMargins(12, 8, 8, 8);
+    customCmdLayout->setSpacing(8);
+    
+    QLabel* cmdPrefix = new QLabel(">", this);
+    cmdPrefix->setObjectName("cmdPrefix");
+    customCmdLayout->addWidget(cmdPrefix);
+    
     commandInput = new QLineEdit(this);
+    commandInput->setObjectName("commandInput");
     commandInput->setPlaceholderText("Type custom command...");
+    customCmdLayout->addWidget(commandInput, 1);
+    
     sendButton = new QPushButton("Send", this);
+    sendButton->setObjectName("sendButton");
+    sendButton->setCursor(Qt::PointingHandCursor);
+    sendButton->setFixedSize(70, 34);
     
     connect(sendButton, &QPushButton::clicked, this, &MainWindow::onSendCommand);
     connect(commandInput, &QLineEdit::returnPressed, this, &MainWindow::onSendCommand);
     
-    customCmdLayout->addWidget(commandInput);
     customCmdLayout->addWidget(sendButton);
-    cmdLayout->addLayout(customCmdLayout);
+    cmdLayout->addWidget(customCmdFrame);
     
-    centralTabs->addTab(commandsWidget, "💬 Commands");
+    centralTabs->addTab(commandsWidget, "Commands");
     
-    centerLayout->addWidget(centralTabs);
-    mainLayout->addWidget(centerPanel);
+    // Tab switch animation
+    connect(centralTabs, &QTabWidget::currentChanged, this, &MainWindow::animateTabSwitch);
     
-    mainLayout->setStretch(0, 0);
-    mainLayout->setStretch(1, 1);
+    tabsContainerLayout->addWidget(centralTabs);
+    centerLayout->addWidget(tabsContainer, 1);
     
+    mainLayout->addWidget(centerPanel, 1);
+    
+    statusBar()->setObjectName("mainStatusBar");
     statusBar()->showMessage("Ready");
     clearBotInfo();
 }
 
+void MainWindow::setupAnimations() {
+    // Status glow pulse via timer (avoids QGraphicsOpacityEffect which breaks QSS hover)
+    statusPulseTimer = new QTimer(this);
+    statusPulseTimer->setInterval(1200);
+    connect(statusPulseTimer, &QTimer::timeout, this, [this]() {
+        static bool bright = false;
+        bright = !bright;
+        if (bright) {
+            statusGlow->setStyleSheet("background: #4ade80; border-radius: 6px;");
+        } else {
+            statusGlow->setStyleSheet("background: #22c55e; border-radius: 6px; opacity: 0.6;");
+        }
+    });
+    statusPulseTimer->start();
+}
+
+void MainWindow::animateTabSwitch(int index) {
+    Q_UNUSED(index);
+    // No-op: QGraphicsOpacityEffect causes black hover artifacts with QSS.
+    // Tab switch is already instant via QTabWidget's built-in behavior.
+}
+
+void MainWindow::pulseStatusIndicator() {
+    // Handled by statusPulseTimer in setupAnimations()
+}
+
 void MainWindow::showNotification(const QString& title, const QString& message, bool isError) {
-    QMessageBox::Icon icon = isError ? QMessageBox::Critical : QMessageBox::Information;
-    QMessageBox msgBox(icon, title, message, QMessageBox::Ok, this);
+    QMessageBox msgBox(this);
+    msgBox.setObjectName("notificationBox");
+    msgBox.setIcon(isError ? QMessageBox::Critical : QMessageBox::Information);
+    msgBox.setWindowTitle(title);
+    msgBox.setText(message);
+    msgBox.setStandardButtons(QMessageBox::Ok);
     msgBox.exec();
 }
 
 void MainWindow::clearBotInfo() {
+    botOnline = false;
+    setBotOnlineState(false);
+    
     botNameLabel->setText("No bot selected");
-    botStatusLabel->setText("⚪ Offline");
+    botStatusLabel->setText("Offline");
+    botStatusLabel->setProperty("status", "offline");
+    statusGlow->setStyleSheet("background: #64748b; border-radius: 6px;");
     botServerLabel->setText("");
+    botServerLabel->hide();
     botUsernameLabel->setText("");
-    healthBar->setValue(20);
-    foodBar->setValue(20);
-    expLabel->setText("0");
-    levelLabel->setText("0");
-    coordsLabel->setText("X: 0, Y: 0, Z: 0");
-    dimensionLabel->setText("Overworld");
-    gamemodeLabel->setText("Survival");
+    botUsernameLabel->hide();
+    
+    healthBar->setValue(0);
+    foodBar->setValue(0);
+    healthValueLabel->setText("-- / 20");
+    foodValueLabel->setText("-- / 20");
+    expLabel->setText("--");
+    levelLabel->setText("--");
+    coordsLabel->setText("X: --, Y: --, Z: --");
+    dimensionLabel->setText("--");
+    gamemodeLabel->setText("--");
+    
     inventoryTable->setRowCount(0);
     tasksTable->setRowCount(0);
     commandOutput->clear();
     taskStatusLabel->setText("No active task");
     taskProgressBar->setValue(0);
     currentBotId = "";
+    
+    MapData emptyMap;
+    minimap->setMapData(emptyMap);
+    minimap->setNoData(true);
+    noDataOverlay->setVisible(true);
 }
 
 void MainWindow::updateBotInfo(const QJsonObject& botData) {
     if (!botData.isEmpty()) {
         botNameLabel->setText(botData["name"].toString());
-        botServerLabel->setText("🌐 " + botData["server"].toString());
-        botUsernameLabel->setText("👤 " + botData["username"].toString());
+        botServerLabel->setText(botData["server"].toString());
+        botServerLabel->show();
+        botUsernameLabel->setText(botData["username"].toString());
+        botUsernameLabel->show();
         
         QString status = botData["status"].toString();
         QString statusText;
-        if (status == "online") statusText = "🟢 Online";
-        else if (status == "connecting") statusText = "🟡 Connecting...";
-        else if (status == "error") statusText = "🔴 Error";
-        else statusText = "⚪ Offline";
+        QString glowColor;
+        QString statusProp;
+        bool isOnline = false;
+        
+        if (status == "online") {
+            statusText = "Online";
+            glowColor = "background: #4ade80; border-radius: 6px;";
+            statusProp = "online";
+            isOnline = true;
+        } else if (status == "connecting") {
+            statusText = "Connecting...";
+            glowColor = "background: #facc15; border-radius: 6px;";
+            statusProp = "connecting";
+        } else if (status == "error") {
+            statusText = "Error";
+            glowColor = "background: #f87171; border-radius: 6px;";
+            statusProp = "error";
+        } else {
+            statusText = "Offline";
+            glowColor = "background: #64748b; border-radius: 6px;";
+            statusProp = "offline";
+        }
+        
         botStatusLabel->setText(statusText);
+        botStatusLabel->setProperty("status", statusProp);
+        statusGlow->setStyleSheet(glowColor);
+        style()->unpolish(botStatusLabel);
+        style()->polish(botStatusLabel);
+        
+        setBotOnlineState(isOnline);
     }
 }
 
@@ -452,8 +842,24 @@ void MainWindow::updateBotStats(const QJsonObject& stats) {
     double y = pos["y"].toDouble(0);
     double z = pos["z"].toDouble(0);
     
-    healthBar->setValue((int)health);
-    foodBar->setValue(food);
+    QPropertyAnimation* healthAnim = new QPropertyAnimation(healthBar, "value", this);
+    healthAnim->setDuration(400);
+    healthAnim->setStartValue(healthBar->value());
+    healthAnim->setEndValue((int)health);
+    healthAnim->setEasingCurve(QEasingCurve::OutCubic);
+    connect(healthAnim, &QPropertyAnimation::finished, healthAnim, &QObject::deleteLater);
+    healthAnim->start();
+    
+    QPropertyAnimation* foodAnim = new QPropertyAnimation(foodBar, "value", this);
+    foodAnim->setDuration(400);
+    foodAnim->setStartValue(foodBar->value());
+    foodAnim->setEndValue(food);
+    foodAnim->setEasingCurve(QEasingCurve::OutCubic);
+    connect(foodAnim, &QPropertyAnimation::finished, foodAnim, &QObject::deleteLater);
+    foodAnim->start();
+    
+    healthValueLabel->setText(QString("%1 / 20").arg(health, 0, 'f', 1));
+    foodValueLabel->setText(QString("%1 / 20").arg(food));
     expLabel->setText(QString::number(exp));
     levelLabel->setText(QString::number(level));
     coordsLabel->setText(QString("X: %1, Y: %2, Z: %3").arg(x, 0, 'f', 1).arg(y, 0, 'f', 1).arg(z, 0, 'f', 1));
@@ -465,13 +871,19 @@ void MainWindow::updateBotStats(const QJsonObject& stats) {
         gamemodeLabel->setText(stats["gamemode"].toString());
     }
     
-    // Update task progress if available
     if (stats.contains("task")) {
         QJsonObject task = stats["task"].toObject();
         QString taskName = task["name"].toString();
         int progress = task["progress"].toInt(0);
-        taskStatusLabel->setText("📋 " + taskName);
-        taskProgressBar->setValue(progress);
+        taskStatusLabel->setText(taskName);
+        
+        QPropertyAnimation* taskAnim = new QPropertyAnimation(taskProgressBar, "value", this);
+        taskAnim->setDuration(500);
+        taskAnim->setStartValue(taskProgressBar->value());
+        taskAnim->setEndValue(progress);
+        taskAnim->setEasingCurve(QEasingCurve::OutCubic);
+        connect(taskAnim, &QPropertyAnimation::finished, taskAnim, &QObject::deleteLater);
+        taskAnim->start();
     }
 }
 
@@ -482,12 +894,14 @@ void MainWindow::updateInventory(const QJsonArray& inventory) {
         QJsonObject item = inventory[i].toObject();
         
         QTableWidgetItem* slotItem = new QTableWidgetItem(QString::number(item["slot"].toInt()));
+        slotItem->setTextAlignment(Qt::AlignCenter);
         inventoryTable->setItem(i, 0, slotItem);
         
         QTableWidgetItem* nameItem = new QTableWidgetItem(item["name"].toString());
         inventoryTable->setItem(i, 1, nameItem);
         
         QTableWidgetItem* countItem = new QTableWidgetItem(QString::number(item["count"].toInt()));
+        countItem->setTextAlignment(Qt::AlignCenter);
         inventoryTable->setItem(i, 2, countItem);
     }
 }
@@ -502,11 +916,13 @@ void MainWindow::updateTasks(const QJsonArray& tasks) {
         tasksTable->setItem(i, 0, nameItem);
         
         bool completed = task["completed"].toBool(false);
-        QTableWidgetItem* statusItem = new QTableWidgetItem(completed ? "✅ Done" : "⏳ In Progress");
+        QTableWidgetItem* statusItem = new QTableWidgetItem(completed ? "Done" : "In Progress");
+        statusItem->setTextAlignment(Qt::AlignCenter);
         tasksTable->setItem(i, 1, statusItem);
         
         int progress = task["progress"].toInt(0);
         QTableWidgetItem* progressItem = new QTableWidgetItem(QString::number(progress) + "%");
+        progressItem->setTextAlignment(Qt::AlignCenter);
         tasksTable->setItem(i, 2, progressItem);
         
         qint64 started = task["started"].toVariant().toLongLong();
@@ -523,11 +939,16 @@ void MainWindow::updateTasks(const QJsonArray& tasks) {
 void MainWindow::updateTaskProgress(const QJsonObject& taskData) {
     QString taskName = taskData["currentTask"].toString();
     int progress = taskData["progress"].toInt(0);
-    int total = taskData["total"].toInt(0);
     
     if (!taskName.isEmpty()) {
-        taskStatusLabel->setText("📋 " + taskName);
-        taskProgressBar->setValue(progress);
+        taskStatusLabel->setText(taskName);
+        QPropertyAnimation* anim = new QPropertyAnimation(taskProgressBar, "value", this);
+        anim->setDuration(500);
+        anim->setStartValue(taskProgressBar->value());
+        anim->setEndValue(progress);
+        anim->setEasingCurve(QEasingCurve::OutCubic);
+        connect(anim, &QPropertyAnimation::finished, anim, &QObject::deleteLater);
+        anim->start();
     } else {
         taskStatusLabel->setText("No active task");
         taskProgressBar->setValue(0);
@@ -535,8 +956,8 @@ void MainWindow::updateTaskProgress(const QJsonObject& taskData) {
 }
 
 void MainWindow::addCommandToOutput(const QString& command, const QString& response) {
-    commandOutput->append("> " + command);
-    commandOutput->append("  " + response);
+    commandOutput->append("<span style='color: #64ffda;'>&gt; " + command + "</span>");
+    commandOutput->append("<span style='color: #a8b2d1;'>" + response + "</span>");
     commandOutput->append("");
 }
 
@@ -560,13 +981,13 @@ void MainWindow::reconnectWebSocket() {
 
 void MainWindow::onWebSocketConnected() {
     reconnectTimer->stop();
-    statusBar()->showMessage("Connected to backend");
+    statusBar()->showMessage("Connected");
     QJsonObject empty;
     sendMessage("get_bots", empty);
 }
 
 void MainWindow::onWebSocketDisconnected() {
-    statusBar()->showMessage("Disconnected from backend, reconnecting...");
+    statusBar()->showMessage("Disconnected, reconnecting...");
     reconnectTimer->start();
     showNotification("Connection Lost", "Backend connection lost. Reconnecting...", true);
 }
@@ -594,6 +1015,8 @@ void MainWindow::onWebSocketMessage(const QString& message) {
         QString command = obj["command"].toString();
         QString response = obj["response"].toString();
         addCommandToOutput(command, response);
+    } else if (type == "bot_map") {
+        updateMap(obj["data"].toObject());
     } else if (type == "notification") {
         QString title = obj["title"].toString();
         QString msg = obj["message"].toString();
@@ -619,24 +1042,23 @@ void MainWindow::updateBotList(const QJsonArray& botsArray) {
         
         botDataCache[bot.id] = botObj;
         
-        QString statusIcon;
-        if (bot.status == "online") statusIcon = "🟢 ";
-        else if (bot.status == "connecting") statusIcon = "🟡 ";
-        else if (bot.status == "error") statusIcon = "🔴 ";
-        else statusIcon = "⚪ ";
+        QString statusDot;
+        if (bot.status == "online") statusDot = QString::fromUtf8("\xF0\x9F\x9F\xA2 ");
+        else if (bot.status == "connecting") statusDot = QString::fromUtf8("\xF0\x9F\x9F\xA1 ");
+        else if (bot.status == "error") statusDot = QString::fromUtf8("\xF0\x9F\x94\xB4 ");
+        else statusDot = QString::fromUtf8("\xE2\x9A\xAA ");
         
-        QListWidgetItem* item = new QListWidgetItem(
-            statusIcon + bot.name
-        );
+        QListWidgetItem* item = new QListWidgetItem(statusDot + bot.name);
         item->setData(Qt::UserRole, bot.id);
         item->setData(Qt::UserRole + 1, bot.status);
+        item->setSizeHint(QSize(0, 44));
         item->setToolTip("Server: " + bot.server + ":" + QString::number(bot.port) + 
                         "\nUsername: " + bot.username +
                         "\nStatus: " + bot.status);
         botList->addItem(item);
     }
     
-    statusBar()->showMessage(QString("Loaded %1 bots").arg(botsArray.size()));
+    statusBar()->showMessage(QString::number(botsArray.size()) + " bots loaded");
 }
 
 void MainWindow::sendMessage(const QString& type, const QJsonObject& data) {
@@ -696,9 +1118,13 @@ void MainWindow::onEditBot() {
     BotData dummy;
     dummy.id = botId;
     dummy.name = item->text();
-    if (dummy.name.startsWith("🟢 ") || dummy.name.startsWith("🟡 ") || 
-        dummy.name.startsWith("🔴 ") || dummy.name.startsWith("⚪ ")) {
-        dummy.name = dummy.name.mid(2);
+    // Strip status emoji prefix
+    for (const QString& prefix : {QString::fromUtf8("\xF0\x9F\x9F\xA2 "), QString::fromUtf8("\xF0\x9F\x9F\xA1 "),
+                                   QString::fromUtf8("\xF0\x9F\x94\xB4 "), QString::fromUtf8("\xE2\x9A\xAA ")}) {
+        if (dummy.name.startsWith(prefix)) {
+            dummy.name = dummy.name.mid(prefix.length());
+            break;
+        }
     }
     dummy.server = "localhost";
     dummy.port = 25565;
@@ -982,4 +1408,242 @@ void MainWindow::onRefreshTasks() {
     data["id"] = currentBotId;
     data["command"] = "tasks";
     sendMessage("bot_command", data);
+}
+
+void MainWindow::setBotOnlineState(bool online) {
+    botOnline = online;
+    noDataOverlay->setVisible(!online);
+    minimap->setNoData(!online);
+    
+    if (!online) {
+        healthBar->setValue(0);
+        foodBar->setValue(0);
+        healthValueLabel->setText("-- / 20");
+        foodValueLabel->setText("-- / 20");
+    }
+}
+
+void MainWindow::updateMap(const QJsonObject& mapObj) {
+    if (mapObj.isEmpty()) return;
+    
+    MapData data;
+    QJsonObject center = mapObj["center"].toObject();
+    data.centerX = center["x"].toInt();
+    data.centerY = center["y"].toInt();
+    data.centerZ = center["z"].toInt();
+    
+    QJsonObject blocks = mapObj["blocks"].toObject();
+    for (auto it = blocks.begin(); it != blocks.end(); ++it) {
+        data.blocks[it.key()] = it.value().toString();
+    }
+    
+    QJsonArray entities = mapObj["entities"].toArray();
+    for (const QJsonValue& e : entities) {
+        QJsonObject eo = e.toObject();
+        MapEntity ent;
+        ent.name = eo["name"].toString();
+        ent.x = eo["x"].toInt();
+        ent.y = eo["y"].toInt();
+        ent.z = eo["z"].toInt();
+        ent.hostile = eo["hostile"].toBool();
+        ent.distance = eo["distance"].toInt();
+        data.entities.append(ent);
+    }
+    
+    QJsonArray players = mapObj["players"].toArray();
+    for (const QJsonValue& p : players) {
+        QJsonObject po = p.toObject();
+        MapPlayer pl;
+        pl.name = po["name"].toString();
+        pl.x = po["x"].toInt();
+        pl.y = po["y"].toInt();
+        pl.z = po["z"].toInt();
+        pl.distance = po["distance"].toInt();
+        data.players.append(pl);
+    }
+    
+    minimap->setMapData(data);
+    minimap->setNoData(false);
+    minimap->update();
+}
+
+// ==================== MinimapWidget ====================
+
+MinimapWidget::MinimapWidget(QWidget* parent)
+    : QWidget(parent), noDataState(true)
+{
+    setObjectName("minimap");
+}
+
+void MinimapWidget::setMapData(const MapData& data) {
+    mapData = data;
+    update();
+}
+
+void MinimapWidget::setNoData(bool noData) {
+    noDataState = noData;
+    update();
+}
+
+QColor MinimapWidget::getBlockColor(const QString& blockName) {
+    if (blockName.contains("stone") || blockName.contains("cobble") || blockName.contains("deepslate"))
+        return QColor(80, 80, 80);
+    if (blockName.contains("dirt") || blockName.contains("grass"))
+        return QColor(100, 70, 40);
+    if (blockName.contains("water"))
+        return QColor(40, 100, 200);
+    if (blockName.contains("lava"))
+        return QColor(220, 100, 20);
+    if (blockName.contains("sand"))
+        return QColor(200, 190, 130);
+    if (blockName.contains("wood") || blockName.contains("log") || blockName.contains("plank"))
+        return QColor(140, 100, 50);
+    if (blockName.contains("leaves"))
+        return QColor(50, 130, 50);
+    if (blockName.contains("iron"))
+        return QColor(180, 160, 140);
+    if (blockName.contains("gold"))
+        return QColor(240, 210, 60);
+    if (blockName.contains("diamond"))
+        return QColor(80, 220, 240);
+    if (blockName.contains("coal"))
+        return QColor(40, 40, 40);
+    if (blockName.contains("ore"))
+        return QColor(120, 100, 80);
+    if (blockName.contains("air"))
+        return QColor(20, 20, 35);
+    if (blockName.contains("bedrock"))
+        return QColor(30, 30, 30);
+    if (blockName.contains("snow"))
+        return QColor(230, 235, 240);
+    if (blockName.contains("ice"))
+        return QColor(140, 180, 240);
+    if (blockName.contains("netherrack"))
+        return QColor(100, 30, 30);
+    if (blockName.contains("end_stone"))
+        return QColor(200, 200, 150);
+    return QColor(60, 60, 70);
+}
+
+void MinimapWidget::paintEvent(QPaintEvent*) {
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+    
+    QRect rect = this->rect();
+    
+    // Background
+    painter.fillRect(rect, QColor(12, 12, 22));
+    
+    if (noDataState) {
+        painter.setPen(QColor(100, 116, 139));
+        painter.setFont(QFont("Segoe UI", 11));
+        painter.drawText(rect, Qt::AlignCenter, "No map data");
+        return;
+    }
+    
+    const int mapRadius = 24;
+    const int gridSize = mapRadius * 2 + 1;
+    int cellSize = qMin(rect.width(), rect.height()) / gridSize;
+    int offsetX = rect.x() + (rect.width() - cellSize * gridSize) / 2;
+    int offsetY = rect.y() + (rect.height() - cellSize * gridSize) / 2;
+    
+    // Draw grid lines
+    drawGrid(painter, QRect(offsetX, offsetY, cellSize * gridSize, cellSize * gridSize));
+    
+    // Draw blocks
+    drawBlocks(painter, QRect(offsetX, offsetY, cellSize * gridSize, cellSize * gridSize), cellSize);
+    
+    // Draw entities
+    drawEntities(painter, QRect(offsetX, offsetY, cellSize * gridSize, cellSize * gridSize), cellSize);
+    
+    // Draw bot center
+    drawBot(painter, QRect(offsetX, offsetY, cellSize * gridSize, cellSize * gridSize));
+}
+
+void MinimapWidget::drawGrid(QPainter& painter, const QRect& rect) {
+    painter.setPen(QPen(QColor(30, 30, 50, 60), 1));
+    int step = rect.width() / 12;
+    for (int x = rect.x(); x <= rect.right(); x += step) {
+        painter.drawLine(x, rect.y(), x, rect.bottom());
+    }
+    for (int y = rect.y(); y <= rect.bottom(); y += step) {
+        painter.drawLine(rect.x(), y, rect.right(), y);
+    }
+}
+
+void MinimapWidget::drawBlocks(QPainter& painter, const QRect& rect, int cellSize) {
+    int mapRadius = 24;
+    int gridSize = mapRadius * 2 + 1;
+    
+    for (auto it = mapData.blocks.begin(); it != mapData.blocks.end(); ++it) {
+        QStringList parts = it.key().split(",");
+        if (parts.size() < 3) continue;
+        
+        int gx = parts[0].toInt();
+        int gz = parts[1].toInt();
+        int gy = parts[2].toInt();
+        
+        // Only draw surface layer (skip deep underground)
+        if (gy < 4) continue;
+        
+        int px = rect.x() + (gx * cellSize);
+        int py = rect.y() + (gz * cellSize);
+        
+        QColor color = getBlockColor(it.value());
+        painter.fillRect(px, py, cellSize, cellSize, color);
+    }
+}
+
+void MinimapWidget::drawEntities(QPainter& painter, const QRect& rect, int cellSize) {
+    int mapRadius = 24;
+    int centerX = rect.x() + rect.width() / 2;
+    int centerY = rect.y() + rect.height() / 2;
+    
+    // Draw mobs
+    for (const MapEntity& ent : mapData.entities) {
+        int dx = ent.x - mapData.centerX;
+        int dz = ent.z - mapData.centerZ;
+        if (qAbs(dx) > mapRadius || qAbs(dz) > mapRadius) continue;
+        
+        int px = centerX + dx * cellSize;
+        int py = centerY + dz * cellSize;
+        
+        QColor color = ent.hostile ? QColor(248, 113, 113) : QColor(167, 139, 250);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(color);
+        painter.drawEllipse(QPoint(px + cellSize / 2, py + cellSize / 2), 3, 3);
+    }
+    
+    // Draw players
+    for (const MapPlayer& pl : mapData.players) {
+        int dx = pl.x - mapData.centerX;
+        int dz = pl.z - mapData.centerZ;
+        if (qAbs(dx) > mapRadius || qAbs(dz) > mapRadius) continue;
+        
+        int px = centerX + dx * cellSize;
+        int py = centerY + dz * cellSize;
+        
+        painter.setPen(QPen(QColor(96, 165, 250), 2));
+        painter.setBrush(QColor(96, 165, 250, 180));
+        painter.drawRect(px - 2, py - 2, cellSize + 4, cellSize + 4);
+        
+        // Player name
+        painter.setPen(QColor(200, 220, 255));
+        painter.setFont(QFont("Segoe UI", 7));
+        painter.drawText(QRect(px - 20, py - 14, 60, 12), Qt::AlignCenter, pl.name);
+    }
+}
+
+void MinimapWidget::drawBot(QPainter& painter, const QRect& rect) {
+    int centerX = rect.x() + rect.width() / 2;
+    int centerY = rect.y() + rect.height() / 2;
+    
+    // Green dot for bot
+    painter.setPen(QPen(QColor(74, 222, 128), 2));
+    painter.setBrush(QColor(74, 222, 128, 200));
+    painter.drawEllipse(QPoint(centerX, centerY), 5, 5);
+    
+    // Direction indicator
+    painter.setPen(QPen(QColor(74, 222, 128, 150), 1));
+    painter.drawLine(centerX, centerY, centerX, centerY - 10);
 }

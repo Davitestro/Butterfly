@@ -1,7 +1,6 @@
 const { GoalBlock, GoalFollow } = require('mineflayer-pathfinder').goals;
 
 function setupCommands(bot, botConfig, botManager) {
-    // Store task data
     if (!botManager.botTasks) {
         botManager.botTasks = {};
     }
@@ -28,6 +27,13 @@ function setupCommands(bot, botConfig, botManager) {
                 const cmd = parts[0].toLowerCase();
                 let response = '';
                 const taskData = botManager.botTasks[botConfig.id];
+                const survivalAI = botManager.survivalAIs[botConfig.id];
+
+                // User command active - pause survival AI auto-actions
+                if (survivalAI) survivalAI.setUserCommandActive(true);
+
+                // Clear any previous user-command timeout
+                if (taskData._userCmdTimeout) clearTimeout(taskData._userCmdTimeout);
 
                 switch(cmd) {
                     case 'moveto':
@@ -71,14 +77,13 @@ function setupCommands(bot, botConfig, botManager) {
                     case 'guard':
                         const radius = parseInt(parts[1]) || 10;
                         response = `Guarding area with radius ${radius}`;
-                        bot.chat(`/say Guarding area with radius ${radius}`);
+                        guardArea(bot, radius, botManager, botConfig);
                         break;
 
                     case 'collect':
                         const resource = parts.slice(1).join(' ');
                         if (resource) {
                             response = `Collecting ${resource}`;
-                            bot.chat(`/say Collecting ${resource}`);
                             collectResources(bot, resource, botManager, botConfig);
                         } else {
                             response = 'Please specify a resource to collect';
@@ -108,7 +113,6 @@ function setupCommands(bot, botConfig, botManager) {
                         const animal = parts.slice(1).join(' ');
                         if (animal) {
                             response = `Hunting ${animal}`;
-                            bot.chat(`/say Hunting ${animal}`);
                             huntAnimals(bot, animal, botManager, botConfig);
                         } else {
                             response = 'Please specify an animal to hunt';
@@ -117,9 +121,12 @@ function setupCommands(bot, botConfig, botManager) {
 
                     case 'hunt_player':
                     case 'huntplayer':
-                        const player = parts.slice(1).join(' ') || 'any player';
-                        response = `Hunting ${player}`;
-                        bot.chat(`/say Hunting ${player}`);
+                        const player = parts.slice(1).join(' ') || 'any';
+                        response = `Hunting player: ${player}`;
+                        if (survivalAI) {
+                            survivalAI.engagePlayer(player);
+                        }
+                        huntPlayers(bot, player, botManager, botConfig, survivalAI);
                         break;
 
                     case 'stop':
@@ -131,8 +138,15 @@ function setupCommands(bot, botConfig, botManager) {
                             taskData.isRunning = false;
                             taskData.currentTask = null;
                             taskData.progress = 0;
+                            if (taskData._guardInterval) {
+                                clearInterval(taskData._guardInterval);
+                                taskData._guardInterval = null;
+                            }
                         }
-                        bot.chat('/say Stopped all actions');
+                        if (survivalAI) {
+                            survivalAI.disengage();
+                            survivalAI.setUserCommandActive(false);
+                        }
                         break;
 
                     case 'status':
@@ -144,7 +158,7 @@ function setupCommands(bot, botConfig, botManager) {
                                 const progress = taskData.progress || 0;
                                 taskStatus = ` | Task: ${taskData.currentTask} (${progress}%)`;
                             }
-                            response = `❤️ Health: ${data.health}/20 | 🍖 Food: ${data.food}/20 | ⭐ Level: ${data.level} | 📍 ${data.position.x}, ${data.position.y}, ${data.position.z}${taskStatus}`;
+                            response = `Health: ${data.health}/20 | Food: ${data.food}/20 | Level: ${data.level} | Pos: ${data.position.x}, ${data.position.y}, ${data.position.z}${taskStatus}`;
                         } else {
                             response = 'Status data not available';
                         }
@@ -152,9 +166,9 @@ function setupCommands(bot, botConfig, botManager) {
 
                     case 'tasks':
                         if (taskData && taskData.tasks.length > 0) {
-                            let taskStr = '📋 Tasks:\n';
+                            let taskStr = 'Tasks:\n';
                             taskData.tasks.forEach((t, i) => {
-                                const status = t.completed ? '✅' : '⏳';
+                                const status = t.completed ? 'Done' : 'In Progress';
                                 const progress = t.progress || 0;
                                 taskStr += `  ${i+1}. ${status} ${t.name} (${progress}%)\n`;
                             });
@@ -168,11 +182,11 @@ function setupCommands(bot, botConfig, botManager) {
                         response = `Available commands:
 moveto <x> <y> <z> - Move to position
 follow <player> - Follow a player
-guard <radius> - Guard area
+guard [radius] - Guard area (auto-attack hostile mobs)
 collect <resource> - Collect resources
 drop <item> [count] - Drop item
 hunt <animal> - Hunt animals
-hunt_player <name> - Hunt players
+hunt_player [name] - Hunt players (strategic PvP)
 status - Show bot status
 tasks - Show task list
 stop - Stop all actions
@@ -184,12 +198,120 @@ help - Show this help`;
                         response = `Command sent: ${command}`;
                 }
 
+                // Auto-release user command lock after 30s (safety)
+                taskData._userCmdTimeout = setTimeout(() => {
+                    if (survivalAI) survivalAI.setUserCommandActive(false);
+                }, 30000);
+
                 resolve(response);
             } catch (err) {
+                if (botManager.survivalAIs[botConfig.id]) {
+                    botManager.survivalAIs[botConfig.id].setUserCommandActive(false);
+                }
                 reject(err);
             }
         });
     };
+}
+
+// Guard area - patrol and auto-attack hostile mobs
+function guardArea(bot, radius, botManager, botConfig) {
+    const taskData = botManager.botTasks[botConfig.id];
+    taskData.currentTask = `Guarding (r=${radius})`;
+    taskData.isRunning = true;
+    taskData.progress = 0;
+
+    taskData.tasks.push({
+        name: `Guard area (r=${radius})`,
+        completed: false,
+        started: Date.now(),
+        progress: 0,
+        total: 0
+    });
+
+    botManager.sendToAllClients({
+        type: 'bot_command_response',
+        command: `guard ${radius}`,
+        response: `Now guarding area with radius ${radius}. Will auto-attack hostile mobs.`
+    });
+
+    const guardInterval = setInterval(() => {
+        if (!taskData.isRunning) {
+            clearInterval(guardInterval);
+            return;
+        }
+
+        const pos = bot.entity ? bot.entity.position : null;
+        if (!pos) return;
+
+        const HOSTILE_MOBS = ['zombie', 'skeleton', 'creeper', 'spider', 'enderman', 'witch',
+            'blaze', 'ghast', 'wither_skeleton', 'phantom', 'drowned', 'husk', 'stray',
+            'pillager', 'vindicator', 'evoker', 'ravager', 'warden', 'breeze', 'bogged'];
+
+        const threats = Object.values(bot.entities).filter(e => {
+            if (!e || !e.position || !e.name) return false;
+            if (e.type !== 'mob') return false;
+            if (!HOSTILE_MOBS.includes(e.name)) return false;
+            return pos.distanceTo(e.position) < radius;
+        });
+
+        if (threats.length > 0) {
+            threats.sort((a, b) => pos.distanceTo(a.position) - pos.distanceTo(b.position));
+            const closest = threats[0];
+            const dist = pos.distanceTo(closest.position);
+
+            // Equip best weapon
+            const inventory = bot.inventory.items();
+            for (const weapon of ['netherite_sword', 'diamond_sword', 'iron_sword', 'stone_sword',
+                                   'netherite_axe', 'diamond_axe', 'iron_axe']) {
+                const item = inventory.find(i => i.name === weapon);
+                if (item) {
+                    bot.equip(item, 'hand').catch(() => {});
+                    break;
+                }
+            }
+
+            if (dist < 4) {
+                bot.attack(closest);
+            } else {
+                bot.pathfinder.setGoal(new GoalBlock(
+                    Math.floor(closest.position.x),
+                    Math.floor(closest.position.y),
+                    Math.floor(closest.position.z)
+                ));
+            }
+
+            taskData.progress = Math.min(100, (taskData.progress || 0) + 5);
+        }
+    }, 500);
+
+    taskData._guardInterval = guardInterval;
+}
+
+// Hunt players with PvP AI
+function huntPlayers(bot, targetName, botManager, botConfig, survivalAI) {
+    const taskData = botManager.botTasks[botConfig.id];
+    taskData.currentTask = `PvP: ${targetName}`;
+    taskData.isRunning = true;
+    taskData.progress = 0;
+
+    taskData.tasks.push({
+        name: `Hunt player: ${targetName}`,
+        completed: false,
+        started: Date.now(),
+        progress: 0,
+        total: 0
+    });
+
+    if (survivalAI) {
+        survivalAI.engagePlayer(targetName);
+    }
+
+    botManager.sendToAllClients({
+        type: 'bot_command_response',
+        command: `hunt_player ${targetName}`,
+        response: `Engaging PvP with ${targetName}. Using tactical combat (strafe, ranged, flee on low HP).`
+    });
 }
 
 // Follow player function
@@ -245,7 +367,7 @@ function followPlayer(bot, playerName, botManager, botConfig) {
             try {
                 const goal = new GoalFollow(player.entity, 2);
                 bot.pathfinder.setGoal(goal);
-                taskData.progress = 50; // Following is in progress
+                taskData.progress = 50;
             } catch (err) {
                 console.error('Follow error:', err.message);
             }
@@ -290,7 +412,7 @@ async function collectResources(bot, resource, botManager, botConfig) {
             botManager.sendToAllClients({
                 type: 'bot_command_response',
                 command: `collect ${resource}`,
-                response: `❌ No ${resource} found nearby. Do you want to provide it? (Place in a chest or use /give)`
+                response: `No ${resource} found nearby.`
             });
             taskData.isRunning = false;
             taskData.currentTask = null;
@@ -335,7 +457,7 @@ async function collectResources(bot, resource, botManager, botConfig) {
                     botManager.sendToAllClients({
                         type: 'bot_command_response',
                         command: `collect ${resource}`,
-                        response: `⛏️ Mined ${block.name} (${taskData.progress}%)`
+                        response: `Mined ${block.name} (${taskData.progress}%)`
                     });
                 } catch (err) {
                     console.error(`[${bot.username}] Mining error:`, err.message);
@@ -352,7 +474,7 @@ async function collectResources(bot, resource, botManager, botConfig) {
         botManager.sendToAllClients({
             type: 'bot_command_response',
             command: `collect ${resource}`,
-            response: `✅ Finished collecting ${resource}. Mined ${mined} blocks.`
+            response: `Finished collecting ${resource}. Mined ${mined} blocks.`
         });
 
     } catch (err) {
@@ -363,7 +485,7 @@ async function collectResources(bot, resource, botManager, botConfig) {
         botManager.sendToAllClients({
             type: 'bot_command_response',
             command: `collect ${resource}`,
-            response: `❌ Error: ${err.message}`
+            response: `Error: ${err.message}`
         });
     }
 }
@@ -394,7 +516,7 @@ async function huntAnimals(bot, animal, botManager, botConfig) {
             botManager.sendToAllClients({
                 type: 'bot_command_response',
                 command: `hunt ${animal}`,
-                response: `❌ No ${animal} found nearby`
+                response: `No ${animal} found nearby`
             });
             taskData.isRunning = false;
             taskData.currentTask = null;
@@ -441,7 +563,7 @@ async function huntAnimals(bot, animal, botManager, botConfig) {
                 botManager.sendToAllClients({
                     type: 'bot_command_response',
                     command: `hunt ${animal}`,
-                    response: `⚔️ Attacked ${entity.name} (${taskData.progress}%)`
+                    response: `Attacked ${entity.name} (${taskData.progress}%)`
                 });
                 await new Promise(resolve => setTimeout(resolve, 500));
             } catch (err) {
@@ -458,7 +580,7 @@ async function huntAnimals(bot, animal, botManager, botConfig) {
         botManager.sendToAllClients({
             type: 'bot_command_response',
             command: `hunt ${animal}`,
-            response: `✅ Finished hunting. Killed ${killed} ${animal}(s).`
+            response: `Finished hunting. Killed ${killed} ${animal}(s).`
         });
 
     } catch (err) {
@@ -469,7 +591,7 @@ async function huntAnimals(bot, animal, botManager, botConfig) {
         botManager.sendToAllClients({
             type: 'bot_command_response',
             command: `hunt ${animal}`,
-            response: `❌ Error: ${err.message}`
+            response: `Error: ${err.message}`
         });
     }
 }
