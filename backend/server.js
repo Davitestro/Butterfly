@@ -25,6 +25,10 @@ console.log(`Loaded ${bots.length} bots from file`);
 const wsHandler = new WebSocketHandler(botManager);
 wsHandler.setup(server);
 
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok' });
+});
+
 // REST API endpoints
 app.get('/api/bots', (req, res) => {
     const bots = botManager.getBots();

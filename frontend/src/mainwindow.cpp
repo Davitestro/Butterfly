@@ -31,6 +31,7 @@
 #include <QEasingCurve>
 #include <QPainter>
 #include <QApplication>
+#include <QProcessEnvironment>
 
 class BotDialog : public QDialog {
 public:
@@ -976,7 +977,9 @@ void MainWindow::setupWebSocket() {
 
 void MainWindow::reconnectWebSocket() {
     statusBar()->showMessage("Connecting to backend...");
-    webSocket->open(QUrl("ws://localhost:3000"));
+    const QString wsUrl = QProcessEnvironment::systemEnvironment().value(
+        "BUTTERFLY_WS_URL", "ws://localhost:3000");
+    webSocket->open(QUrl(wsUrl));
 }
 
 void MainWindow::onWebSocketConnected() {

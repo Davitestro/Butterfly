@@ -1,110 +1,137 @@
-.PHONY: help setup build run stop status clean rebuild logs
+SHELL := /bin/sh
+
+.DEFAULT_GOAL := help
+
+COMPOSE ?= docker compose
+COMPOSE_FILE ?= docker-compose.yml
+PROJECT ?= butterfly
+SERVICE ?=
+TAIL ?= 100
+EXEC_SERVICE ?= backend
+CMD ?= sh
+
+DC := $(COMPOSE) -p $(PROJECT) -f $(COMPOSE_FILE)
+
+.PHONY: all help setup check build up up-build run start stop down restart rebuild \
+	logs status ps config shell exec clean clean-all docker-check docker-build \
+	docker-up docker-up-build docker-start docker-stop docker-down docker-restart \
+	docker-rebuild docker-logs docker-status docker-ps docker-config docker-shell \
+	docker-exec docker-clean docker-clean-all
+
+all: build
 
 help:
-	@echo "Minecraft Bot Manager Commands:"
-	@echo ""
-	@echo "  make setup   - Install dependencies"
-	@echo "  make build   - Build the application"
-	@echo "  make run     - Start the application (with logs)"
-	@echo "  make stop    - Stop the application"
-	@echo "  make status  - Check running processes"
-	@echo "  make clean   - Clean build files (keeps bot data)"
-	@echo "  make clean-all - Clean everything including bot data"
-	@echo "  make rebuild - Clean and rebuild"
-	@echo "  make logs    - Show backend logs"
+	@printf '%s\n' 'Butterfly Docker commands:'
+	@printf '%s\n' '' \
+		'  make setup          Check that Docker and Compose are available' \
+		'  make build          Build all Docker images' \
+		'  make up             Start the stack in the background' \
+		'  make up-build       Build images and start the stack' \
+		'  make run            Alias for up-build' \
+		'  make start          Start already-created containers' \
+		'  make stop           Stop containers without removing them' \
+		'  make down           Stop and remove the stack' \
+		'  make restart        Restart the stack' \
+		'  make rebuild        Rebuild images and recreate the stack' \
+		'  make logs           Follow logs (SERVICE=backend|frontend)' \
+		'  make status         Show container status and health' \
+		'  make config         Validate and print the Compose configuration' \
+		'  make shell          Open a shell (EXEC_SERVICE=backend|frontend)' \
+		'  make exec CMD=...   Run a command in a service container' \
+		'  make clean          Remove containers and local images' \
+		'  make clean-all      Also remove Compose volumes' \
+		'' \
+		'Options:' \
+		'  SERVICE=backend|frontend  Limit build/start/log commands to one service' \
+		'  PROJECT=name              Use a different Compose project name' \
+		'  TAIL=100                 Number of log lines to show before following'
 
-setup:
-	@echo "Installing dependencies..."
-	@sudo apt-get update
-	@sudo apt-get install -y nodejs npm cmake build-essential qt5-default qtbase5-dev qt5-qmake libqt5websockets5-dev
-	@cd backend && npm install
-	@echo "Setup complete!"
+setup: docker-check
 
-build:
-	@echo "Building backend..."
-	@cd backend && npm install
-	@echo "Building frontend..."
-	@mkdir -p frontend/build
-	@cd frontend/build && cmake .. && make
-	@cd frontend/build && patchelf --replace-needed libpthread.so.0 libpthread.so.0 MinecraftBotManager 2>/dev/null || true
-	@echo "Build complete!"
+check: docker-check
 
-run:
-	@echo "========================================"
-	@echo "🚀 Starting Minecraft Bot Manager"
-	@echo "========================================"
-	@echo ""
-	@echo "Starting backend server..."
-	@cd backend && nohup npm start > backend.log 2>&1 &
-	@echo "⏳ Waiting for backend to start..."
-	@sleep 3
-	@echo "✅ Backend running on port 3000"
-	@echo ""
-	@echo "Starting frontend..."
-	@./launch.sh &
-	@echo "✅ Frontend started"
-	@echo ""
-	@echo "========================================"
-	@echo "📊 Application is running!"
-	@echo "========================================"
-	@echo ""
-	@echo "To stop: make stop"
-	@echo "To view logs: make logs"
-	@echo ""
-	@echo "Showing backend logs (Ctrl+C to stop viewing):"
-	@echo ""
-	@tail -f backend/backend.log
+docker-check:
+	@command -v docker >/dev/null 2>&1 || { printf '%s\n' 'Docker is required but was not found.' >&2; exit 1; }
+	@docker compose version >/dev/null 2>&1 || { printf '%s\n' 'Docker Compose v2 is required but was not found.' >&2; exit 1; }
+	@printf '%s\n' 'Docker and Docker Compose are available.'
 
-stop:
-	@echo "========================================"
-	@echo "🛑 Stopping Minecraft Bot Manager"
-	@echo "========================================"
-	@echo ""
-	@echo "Stopping frontend..."
-	@pkill -f MinecraftBotManager 2>/dev/null || true
-	@echo "Stopping backend..."
-	@pkill -f "node server.js" 2>/dev/null || true
-	@echo "Freeing port 3000..."
-	@sudo fuser -k 3000/tcp 2>/dev/null || true
-	@sleep 1
-	@echo ""
-	@echo "✅ All processes stopped"
-	@echo "========================================"
+build: docker-build
 
-status:
-	@echo "Checking running processes..."
-	@echo ""
-	@echo "Backend:"
-	@ps aux | grep "node server.js" | grep -v grep || echo "  ❌ Not running"
-	@echo ""
-	@echo "Frontend:"
-	@ps aux | grep MinecraftBotManager | grep -v grep || echo "  ❌ Not running"
-	@echo ""
-	@echo "Port 3000:"
-	@sudo lsof -i :3000 2>/dev/null || echo "  Port 3000 is free"
-	@echo ""
-	@echo "Saved bots:"
-	@if [ -f backend/bots.json ]; then echo "  ✅ bots.json exists"; cat backend/bots.json | grep -c '"id"' | xargs echo "  Bots count:"; else echo "  No bots file"; fi
+docker-build: docker-check
+	@$(DC) build $(SERVICE)
 
-logs:
-	@echo "Showing backend logs (Ctrl+C to exit):"
-	@tail -f backend/backend.log
+up: docker-up
 
-clean:
-	@echo "Cleaning build files (keeping bot data)..."
-	@rm -rf frontend/build
-	@rm -rf backend/node_modules
-	@rm -f backend/backend.log
-	@rm -f backend/nohup.out
-	@echo "Clean complete! Bot data preserved in backend/bots.json"
+docker-up: docker-check
+	@$(DC) up -d --remove-orphans $(SERVICE)
 
-clean-all:
-	@echo "Cleaning EVERYTHING (including bot data)..."
-	@rm -rf frontend/build
-	@rm -rf backend/node_modules
-	@rm -f backend/bots.json
-	@rm -f backend/backend.log
-	@rm -f backend/nohup.out
-	@echo "Complete clean done!"
+up-build: docker-up-build
 
-rebuild: clean build
+docker-up-build: docker-check
+	@$(DC) up -d --build --remove-orphans $(SERVICE)
+
+run: up-build
+
+start: docker-start
+
+docker-start: docker-check
+	@$(DC) start $(SERVICE)
+
+stop: docker-stop
+
+docker-stop: docker-check
+	@$(DC) stop $(SERVICE)
+
+down: docker-down
+
+docker-down: docker-check
+	@$(DC) down --remove-orphans
+
+restart: docker-restart
+
+docker-restart: docker-check
+	@$(DC) restart $(SERVICE)
+
+rebuild: docker-rebuild
+
+docker-rebuild: docker-check
+	@$(DC) up -d --build --force-recreate --remove-orphans $(SERVICE)
+
+logs: docker-logs
+
+docker-logs: docker-check
+	@$(DC) logs -f --tail=$(TAIL) $(SERVICE)
+
+status: docker-status
+
+docker-status: docker-check
+	@$(DC) ps --all
+
+ps: docker-ps
+
+docker-ps: docker-status
+
+config: docker-config
+
+docker-config: docker-check
+	@$(DC) config
+
+shell: docker-shell
+
+docker-shell: docker-check
+	@$(DC) exec $(EXEC_SERVICE) sh
+
+exec: docker-exec
+
+docker-exec: docker-check
+	@$(DC) exec $(EXEC_SERVICE) $(CMD)
+
+clean: docker-clean
+
+docker-clean: docker-check
+	@$(DC) down --remove-orphans --rmi all
+
+clean-all: docker-clean-all
+
+docker-clean-all: docker-check
+	@$(DC) down --remove-orphans --rmi all --volumes

@@ -1,24 +1,24 @@
 FROM ubuntu:22.04
 
-# Install dependencies
-RUN apt-get update && apt-get install -y \
-    qt6-base-dev \
-    qt6-tools-dev \
-    qt6-tools-dev-tools \
-    libqt6core5compat6-dev \
-    libcurl4-openssl-dev \
-    build-essential \
-    cmake \
-    libqt6websockets6-dev \
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        cmake \
+        libcurl4-openssl-dev \
+        libqt5websockets5-dev \
+        qtbase5-dev \
+        qtbase5-dev-tools \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+COPY frontend/ /app/
 
-# Copy frontend source
-COPY frontend/ .
+RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build build --parallel
 
-# Build the application
-RUN mkdir -p build && cd build && cmake .. && make
+ENV QT_X11_NO_MITSHM=1
 
-# Run the application
 CMD ["./build/MinecraftBotManager"]
